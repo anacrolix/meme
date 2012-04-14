@@ -120,17 +120,70 @@ typedef enum {
     INTEGER,
     STRING,
     LIST,
+    DEFINE,
 } Form;
 
-typedef struct {
+typedef struct Node {
     Form form;
     union {
         long long i;
         double f;
         char *s;
         GSList *list;
+        struct {
+            char *var;
+            struct Node *exp;
+        } define;
     };
 } Node;
+
+Node *parse(Lexer *lexer);
+
+void burn_end_token(Lexer *lexer) {
+    Token token[1];
+    if (!next_token(lexer, token)) abort();
+    if (token->type != END) {
+        fprintf(stderr, "expected list end\n");
+        abort();
+    }
+}
+
+void drop_token(Lexer *lexer) {
+    Token token[1];
+    if (!next_token(lexer, token)) abort();
+}
+
+Node *parse_list(Lexer *lexer) {
+    Token const *first;
+    if (!peek_token(lexer, &first)) abort();
+    Node *ret = malloc(sizeof *ret);
+    ret->form = LIST;
+    if (first->type == ATOM) {
+        if (!strcmp(first->value, "define")) {
+            ret->form = DEFINE;
+            drop_token(lexer);
+            Token var_token[1];
+            if (!next_token(lexer, var_token)) abort();
+            ret->define.var = var_token->value;
+            ret->define.exp = parse(lexer);
+        }
+        if (ret->form != LIST) {
+            burn_end_token(lexer);
+            return ret;
+        }
+    }
+    ret->list = NULL;
+    for (;;) {
+        Token const *token;
+        if (!peek_token(lexer, &token)) abort();
+        if (token->type == END) break;
+        Node *node = parse(lexer);
+        ret->list = g_slist_prepend(ret->list, node);
+    }
+    burn_end_token(lexer);
+    ret->list = g_slist_reverse(ret->list);
+    return ret;
+}
 
 Node *parse(Lexer *lexer) {
     Token tn[1];
@@ -154,17 +207,7 @@ Node *parse(Lexer *lexer) {
         }
         break;
     case START:
-        node->form = LIST;
-        node->list = NULL;
-        for (;;) {
-            Token const *pt;
-            if (!peek_token(lexer, &pt)) abort();
-            if (pt->type == END) break;
-            node->list = g_slist_prepend(node->list, parse(lexer));
-        }
-        if (!next_token(lexer, tn)) abort();
-        if (tn->type != END) abort();
-        node->list = g_slist_reverse(node->list);
+        return parse_list(lexer);
         break;
     default:
         fprintf(stderr, "syntax error\n");
@@ -175,18 +218,7 @@ Node *parse(Lexer *lexer) {
     return node;
 }
 
-void print_node(Node const *node, bool *just_atom) {
-    switch (node->form) {
-    case LIST:
-        putchar('(');
-        *just_atom = false;
-        g_slist_foreach(node->list, (GFunc)print_node, just_atom);
-        putchar(')');
-        *just_atom = false;
-        return;
-    default:
-        break;
-    }
+void print_atom(Node const *node, bool *just_atom) {
     if (*just_atom) putchar(' ');
     switch (node->form) {
     case VARREF:
@@ -196,10 +228,30 @@ void print_node(Node const *node, bool *just_atom) {
         printf("%lld", node->i);
         break;
     default:
-        fprintf(stderr, "can't print node form: %d\n", node->form);
+        fprintf(stderr, "can't print atom node form: %d\n", node->form);
         abort();
     }
     *just_atom = true;
+}
+
+void print_node(Node const *node, bool *just_atom) {
+    switch (node->form) {
+    case LIST:
+        putchar('(');
+        *just_atom = false;
+        g_slist_foreach(node->list, (GFunc)print_node, just_atom);
+        putchar(')');
+        *just_atom = false;
+        break;
+    case DEFINE:
+        printf("(define %s", node->define.var);
+        *just_atom = false;
+        print_node(node->define.exp, just_atom);
+        putchar(')');
+        break;
+    default:
+        print_atom(node, just_atom); 
+    }
 }
 
 typedef struct Env {
@@ -208,6 +260,10 @@ typedef struct Env {
 } Env;
 
 Node *env_find(Env *env, char const *var) {
+    if (env == NULL) {
+        fprintf(stderr, "symbol not found: %s\n", var);
+        return NULL;
+    }
     void *value;
     if (!g_hash_table_lookup_extended(env->dict, var, NULL, &value)) {
         return env_find(env->outer, var);
@@ -219,10 +275,10 @@ Node *env_find(Env *env, char const *var) {
     return value;
 }
 
-void env_init(Env *env) {
+void env_init(Env *env, Env *outer) {
     *env = (Env){
         .dict = g_hash_table_new(g_str_hash, g_str_equal),
-        .outer = env,
+        .outer = outer,
     };
 }
 
@@ -260,14 +316,17 @@ Node *eval(Node *node, Env *env) {
             GSList *arg_names = ((Node *)(proc->list->data))->list;
             Node *exp = proc->list->next->data;
             Env sub_env[1];
-            env_init(sub_env);
+            env_init(sub_env, env);
             bind_args(sub_env->dict, arg_names, args);
             Node *ret = eval(exp, sub_env);
             env_destroy(sub_env);
             return ret;
         }
+    case DEFINE:
+        
+
     default:
-        return node;
+        abort();
     }
 }
 
@@ -292,8 +351,9 @@ int main(int argc, char **argv) {
     bool just_atom = false;
     print_node(node, &just_atom);
     putchar('\n');
-    Env top_env = {
-    };
-    eval(node, &top_env);
+    Env top_env[1];
+    env_init(top_env, NULL);
+    eval(node, top_env);
+    env_destroy(top_env);
     return !node;
 }
