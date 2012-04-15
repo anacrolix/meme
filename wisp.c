@@ -6,111 +6,97 @@
 #include <ctype.h>
 
 typedef enum {
+    INVALID,
     ATOM,
     START,
     END,
 } TokenType;
 
 typedef struct {
+    int line, col;
     TokenType type;
     char *value;
 } Token;
 
 typedef struct {
-    GSList *indents;
     FILE *file;
-    int cur_indent;
-    bool new_line;
-    GSList *queue;
+    int line, col;
+    Token token[1];
 } Lexer;
 
-void read_atom(Lexer *toker, char **value) {
+char *read_atom(Lexer *lexer) {
+    // TODO remove atom length limit
     char lval[0x100];
     int len = 0;
     for (; len < sizeof lval - 1; len++) {
-        int c = fgetc(toker->file);
+        int c = fgetc(lexer->file);
         if (c < 0) break;
         switch (c) {
         case ' ':
+        case '\t':
         case '(':
         case ')':
         case '\n':
-            if (c != ungetc(c, toker->file)) abort();
+            if (c != ungetc(c, lexer->file)) abort();
             goto end_loop;
         }
         lval[len] = c;
+        lexer->col++;
     }
 end_loop:
     if (!len) abort();
     lval[len] = '\0';
-    *value = strdup(lval);
+    return strdup(lval);
 }
 
-bool next_token(Lexer *lexer, Token *token) {
-    if (lexer->queue) {
-        *token = *(Token *)lexer->queue->data;
-        lexer->queue = g_slist_delete_link(lexer->queue, lexer->queue);
-        return true;
-    }
-    if (!lexer->file) return false;
+void discard_whitespace(Lexer *lexer) {
     for (;;) {
         int c = fgetc(lexer->file);
-        if (c < 0) {
-            if (ferror(lexer->file)) abort();
-            if (!lexer->indents) {
-                lexer->file = NULL;
-                token->type = END;
-                return true;
-            }
-            lexer->indents = g_slist_remove_link(lexer->indents, lexer->indents);
-            token->type = END;
-            return true;
-        }
+        if (c < 0) return;
         switch (c) {
         case ' ':
+        case '\t':
+            lexer->col++;
             break;
         case '\n':
-            lexer->cur_indent = 0;
-            lexer->new_line = true;
-            continue;
-        case '(':
-        case ')':
-            *token = (Token){
-                .type = (c == '(') ? START : END,
-            };
-            lexer->cur_indent++;
-            return true;
+            lexer->line++;
+            lexer->col = 1;
+            break;
         default:
             if (c != ungetc(c, lexer->file)) abort();
-            if (lexer->new_line) {
-                if (lexer->indents && lexer->cur_indent <= GPOINTER_TO_INT(lexer->indents->data)) {
-                    lexer->indents = g_slist_remove_link(lexer->indents, lexer->indents);
-
-                    token->type = END;
-                    return true;
-                }
-                lexer->new_line = false;
-                token->type = START;
-                lexer->indents = g_slist_prepend(lexer->indents, GINT_TO_POINTER(lexer->cur_indent));
-                return true;
-            }
-            read_atom(lexer, &token->value);
-            token->type = ATOM;
-            return true;
+            return;
         }
-        lexer->cur_indent++;
     }
 }
 
-bool peek_token(Lexer *lexer, Token const **token) {
-    if (lexer->queue) {
-        *token = lexer->queue->data;
+void init_token(Lexer *lexer, TokenType type) {
+    Token *t = lexer->token;
+    t->type = type;
+    t->line = lexer->line;
+    t->col = lexer->col;
+}
+
+bool next_token(Lexer *lexer) {
+    discard_whitespace(lexer);
+    int c = fgetc(lexer->file);
+    if (c < 0) {
+        init_token(lexer, INVALID);
+        return false;
+    }
+    switch (c) {
+    case '(':
+        init_token(lexer, START);
+        break;
+    case ')':
+        init_token(lexer, END);
+        break;
+    default:
+        if (c != ungetc(c, lexer->file)) abort();
+        init_token(lexer, ATOM);
+        lexer->token->value = read_atom(lexer);
         return true;
     }
-    Token *t = malloc(sizeof *t);
-    if (!next_token(lexer, t)) return false;
-    lexer->queue = g_slist_prepend(lexer->queue, t);
-    *token = t;
+    lexer->col++;
     return true;
 }
 
@@ -121,6 +107,8 @@ typedef enum {
     STRING,
     LIST,
     DEFINE,
+    LAMBDA,
+    BEGIN,
 } Form;
 
 typedef struct Node {
@@ -132,90 +120,97 @@ typedef struct Node {
         GSList *list;
         struct {
             char *var;
-            struct Node *exp;
+            struct Node *expr;
         } define;
+        struct {
+            struct Node *vars;
+            struct Node *expr;
+        } lambda;
     };
 } Node;
 
 Node *parse(Lexer *lexer);
 
-void burn_end_token(Lexer *lexer) {
-    Token token[1];
-    if (!next_token(lexer, token)) abort();
-    if (token->type != END) {
-        fprintf(stderr, "expected list end\n");
-        abort();
-    }
-}
-
-void drop_token(Lexer *lexer) {
-    Token token[1];
-    if (!next_token(lexer, token)) abort();
-}
-
-Node *parse_list(Lexer *lexer) {
-    Token const *first;
-    if (!peek_token(lexer, &first)) abort();
+Node *parse_define(Lexer *lexer) {
     Node *ret = malloc(sizeof *ret);
-    ret->form = LIST;
-    if (first->type == ATOM) {
-        if (!strcmp(first->value, "define")) {
-            ret->form = DEFINE;
-            drop_token(lexer);
-            Token var_token[1];
-            if (!next_token(lexer, var_token)) abort();
-            ret->define.var = var_token->value;
-            ret->define.exp = parse(lexer);
-        }
-        if (ret->form != LIST) {
-            burn_end_token(lexer);
-            return ret;
-        }
-    }
-    ret->list = NULL;
-    for (;;) {
-        Token const *token;
-        if (!peek_token(lexer, &token)) abort();
-        if (token->type == END) break;
-        Node *node = parse(lexer);
-        ret->list = g_slist_prepend(ret->list, node);
-    }
-    burn_end_token(lexer);
-    ret->list = g_slist_reverse(ret->list);
+    Token *t = lexer->token;
+    ret->form = DEFINE;
+    if (t->type != ATOM) abort();
+    ret->define.var = t->value;
+    t->value = NULL;
+    next_token(lexer);
+    ret->define.expr = parse(lexer);
+    if (t->type != END) abort();
+    next_token(lexer);
     return ret;
 }
 
-Node *parse(Lexer *lexer) {
-    Token tn[1];
-    if (!next_token(lexer, tn)) return NULL;
-    Node *node = malloc(sizeof *node);
-    switch (tn->type) {
-    case ATOM:
-        if (tn->value[0] == '"') {
-            node->form = STRING;
-            node->s = strdup(tn->value + 1);
-            return node;
-        } else if (strchr(tn->value, '.')) {
-            node->form = DOUBLE;
-            if (1 != sscanf(tn->value, "%lf", &node->f)) abort();
-        } else if (isdigit(tn->value[0])) {
-            node->form = INTEGER;
-            if (1 != sscanf(tn->value, "%lld", &node->i)) abort();
-        } else {
-            node->form = VARREF;
-            node->s = strdup(tn->value);
+Node *parse_lambda(Lexer *lexer) {
+    Node *ret = malloc(sizeof *ret);
+    ret->form = LAMBDA;
+    ret->lambda.vars = parse(lexer);
+    ret->lambda.expr = parse(lexer);
+    if (lexer->token->type != END) abort();
+    next_token(lexer);
+    return ret;
+}
+
+Node *parse_list(Lexer *lexer) {
+    Token *const t = lexer->token;
+    if (t->type == ATOM) {
+        if (!strcmp(t->value, "define")) {
+            next_token(lexer);
+            return parse_define(lexer);
+        } else if (!strcmp(t->value, "lambda")) {
+            if (!next_token(lexer)) abort();
+            return parse_lambda(lexer);
         }
-        break;
-    case START:
-        return parse_list(lexer);
-        break;
-    default:
-        fprintf(stderr, "syntax error\n");
-        abort();
-        free(node);
-        node = NULL;
     }
+    Node *ret = malloc(sizeof *ret);
+    if (t->type == ATOM && !strcmp(t->value, "begin")) {
+        ret->form = BEGIN;
+        if (!next_token(lexer)) abort();
+    } else ret->form = LIST;
+    ret->list = NULL;
+    while (t->type != END) {
+        ret->list = g_slist_prepend(ret->list, parse(lexer));
+    }
+    ret->list = g_slist_reverse(ret->list);
+    next_token(lexer);
+    return ret;
+}
+
+Node *parse_atom(Lexer *lexer) {
+    Token const *tn = lexer->token;
+    Node *node = malloc(sizeof *node);
+    if (tn->value[0] == '"') {
+        node->form = STRING;
+        node->s = strdup(tn->value + 1);
+        return node;
+    } else if (strchr(tn->value, '.')) {
+        node->form = DOUBLE;
+        if (1 != sscanf(tn->value, "%lf", &node->f)) abort();
+    } else if (isdigit(tn->value[0])) {
+        node->form = INTEGER;
+        if (1 != sscanf(tn->value, "%lld", &node->i)) abort();
+    } else {
+        node->form = VARREF;
+        node->s = strdup(tn->value);
+    }
+    next_token(lexer);
     return node;
+}
+
+Node *parse(Lexer *lexer) {
+    switch (lexer->token->type) {
+    case ATOM:
+        return parse_atom(lexer);
+    case START:
+        if (!next_token(lexer)) abort();
+        return parse_list(lexer);
+    default:
+        abort();
+    }
 }
 
 void print_atom(Node const *node, bool *just_atom) {
@@ -236,6 +231,13 @@ void print_atom(Node const *node, bool *just_atom) {
 
 void print_node(Node const *node, bool *just_atom) {
     switch (node->form) {
+    case BEGIN:
+        fputs("(begin", stdout);
+        *just_atom = true;
+        g_slist_foreach(node->list, (GFunc)print_node, just_atom);
+        putchar(')');
+        *just_atom = false;
+        break;
     case LIST:
         putchar('(');
         *just_atom = false;
@@ -246,7 +248,14 @@ void print_node(Node const *node, bool *just_atom) {
     case DEFINE:
         printf("(define %s", node->define.var);
         *just_atom = false;
-        print_node(node->define.exp, just_atom);
+        print_node(node->define.expr, just_atom);
+        putchar(')');
+        break;
+    case LAMBDA:
+        fputs("(lambda ", stdout);
+        *just_atom = false;
+        print_node(node->lambda.vars, just_atom);
+        print_node(node->lambda.expr, just_atom);
         putchar(')');
         break;
     default:
@@ -312,19 +321,34 @@ Node *eval(Node *node, Env *env) {
             }
             exps = g_slist_reverse(exps);
             Node *proc = exps->data;
+            if (proc->form != LAMBDA) abort();
             GSList *args = exps->next;
-            GSList *arg_names = ((Node *)(proc->list->data))->list;
-            Node *exp = proc->list->next->data;
+            GSList *arg_names = proc->lambda.vars->list;
             Env sub_env[1];
             env_init(sub_env, env);
             bind_args(sub_env->dict, arg_names, args);
-            Node *ret = eval(exp, sub_env);
+            Node *ret = eval(proc->lambda.expr, sub_env);
             env_destroy(sub_env);
             return ret;
         }
     case DEFINE:
-        
-
+        {
+            Node *value = eval(node->define.expr, env);
+            g_hash_table_insert(env->dict, node->define.var, value);
+            return NULL;
+        }
+    case LAMBDA:
+        return node;
+    case BEGIN:
+        {
+            Node *ret = NULL;
+            for (GSList *list = node->list; list; list = list->next) {
+                ret = eval(list->data, env);
+            }
+            return ret;
+        }
+    case INTEGER:
+        return node;
     default:
         abort();
     }
@@ -342,18 +366,19 @@ int main(int argc, char **argv) {
     }
     Lexer lexer = {
         .file = token_file,
-        .new_line = true,
+        .line = 1,
+        .col = 1,
     };
-    Token *first_token = malloc(sizeof *first_token);
-    first_token->type = START;
-    lexer.queue = g_slist_prepend(lexer.queue, first_token);
+    next_token(&lexer);
     Node *node = parse(&lexer);
     bool just_atom = false;
     print_node(node, &just_atom);
     putchar('\n');
     Env top_env[1];
     env_init(top_env, NULL);
-    eval(node, top_env);
+    Node *result = eval(node, top_env);
     env_destroy(top_env);
+    just_atom = false;
+    print_node(result, &just_atom);
     return !node;
 }

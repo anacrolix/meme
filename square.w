@@ -1,4 +1,4 @@
-def square(x)
-    * x x
-
-square 7
+(begin
+  (define square (lambda (x) (* x x)))
+  (square 7)
+)
