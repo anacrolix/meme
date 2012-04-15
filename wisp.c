@@ -24,6 +24,40 @@ typedef struct {
     Token token[1];
 } Lexer;
 
+typedef struct {
+    struct Node **nodes;
+    long len;
+    long cap;
+} List;
+
+typedef enum {
+    IDENTIFIER,
+    DOUBLE,
+    INTEGER,
+    STRING,
+    LIST,
+    BEGIN,
+    LAMBDA,
+} Form;
+
+typedef struct Env {
+    GHashTable *dict;
+    struct Env *outer;
+} Env;
+
+typedef struct Node *(*NodeFunc)(struct Node *, struct Node **, int, Env *);
+
+typedef struct Node {
+    Form form;
+    union {
+        long long i;
+        double f;
+        char *s;
+        List list[1];
+    };
+    NodeFunc run;
+} Node;
+
 char *read_atom(Lexer *lexer) {
     // TODO remove atom length limit
     char lval[0x100];
@@ -100,82 +134,29 @@ bool next_token(Lexer *lexer) {
     return true;
 }
 
-typedef enum {
-    VARREF,
-    DOUBLE,
-    INTEGER,
-    STRING,
-    LIST,
-    DEFINE,
-    LAMBDA,
-    BEGIN,
-} Form;
+void list_init(List *l) {
+    memset(l, 0, sizeof *l);
+}
 
-typedef struct Node {
-    Form form;
-    union {
-        long long i;
-        double f;
-        char *s;
-        GSList *list;
-        struct {
-            char *var;
-            struct Node *expr;
-        } define;
-        struct {
-            struct Node *vars;
-            struct Node *expr;
-        } lambda;
-    };
-} Node;
+void list_append(List *l, Node *n) {
+    if (l->len == l->cap) {
+        if (l->cap == 0) l->cap = 5;
+        else l->cap *= 2;
+        l->nodes = realloc(l->nodes, l->cap * sizeof *l->nodes);
+    } else if (l->len > l->cap) abort();
+    l->nodes[l->len++] = n;
+}
 
 Node *parse(Lexer *lexer);
 
-Node *parse_define(Lexer *lexer) {
-    Node *ret = malloc(sizeof *ret);
-    Token *t = lexer->token;
-    ret->form = DEFINE;
-    if (t->type != ATOM) abort();
-    ret->define.var = t->value;
-    t->value = NULL;
-    next_token(lexer);
-    ret->define.expr = parse(lexer);
-    if (t->type != END) abort();
-    next_token(lexer);
-    return ret;
-}
-
-Node *parse_lambda(Lexer *lexer) {
-    Node *ret = malloc(sizeof *ret);
-    ret->form = LAMBDA;
-    ret->lambda.vars = parse(lexer);
-    ret->lambda.expr = parse(lexer);
-    if (lexer->token->type != END) abort();
-    next_token(lexer);
-    return ret;
-}
-
 Node *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
-    if (t->type == ATOM) {
-        if (!strcmp(t->value, "define")) {
-            next_token(lexer);
-            return parse_define(lexer);
-        } else if (!strcmp(t->value, "lambda")) {
-            if (!next_token(lexer)) abort();
-            return parse_lambda(lexer);
-        }
-    }
     Node *ret = malloc(sizeof *ret);
-    if (t->type == ATOM && !strcmp(t->value, "begin")) {
-        ret->form = BEGIN;
-        if (!next_token(lexer)) abort();
-    } else ret->form = LIST;
-    ret->list = NULL;
+    memset(ret, 0, sizeof *ret);
+    ret->form = LIST;
     while (t->type != END) {
-        ret->list = g_slist_prepend(ret->list, parse(lexer));
+        list_append(ret->list, parse(lexer));
     }
-    ret->list = g_slist_reverse(ret->list);
     next_token(lexer);
     return ret;
 }
@@ -194,7 +175,7 @@ Node *parse_atom(Lexer *lexer) {
         node->form = INTEGER;
         if (1 != sscanf(tn->value, "%lld", &node->i)) abort();
     } else {
-        node->form = VARREF;
+        node->form = IDENTIFIER;
         node->s = strdup(tn->value);
     }
     next_token(lexer);
@@ -216,7 +197,7 @@ Node *parse(Lexer *lexer) {
 void print_atom(Node const *node, bool *just_atom) {
     if (*just_atom) putchar(' ');
     switch (node->form) {
-    case VARREF:
+    case IDENTIFIER:
         fputs(node->s, stdout);
         break;
     case INTEGER:
@@ -230,43 +211,25 @@ void print_atom(Node const *node, bool *just_atom) {
 }
 
 void print_node(Node const *node, bool *just_atom) {
-    switch (node->form) {
-    case BEGIN:
-        fputs("(begin", stdout);
+    if (!node) {
+        fputs("(null)", stdout);
         *just_atom = true;
-        g_slist_foreach(node->list, (GFunc)print_node, just_atom);
-        putchar(')');
-        *just_atom = false;
-        break;
+        return;
+    }
+    switch (node->form) {
     case LIST:
         putchar('(');
         *just_atom = false;
-        g_slist_foreach(node->list, (GFunc)print_node, just_atom);
+        for (int i = 0; i < node->list->len; i++) {
+            print_node(node->list->nodes[i], just_atom);
+        }
         putchar(')');
         *just_atom = false;
-        break;
-    case DEFINE:
-        printf("(define %s", node->define.var);
-        *just_atom = false;
-        print_node(node->define.expr, just_atom);
-        putchar(')');
-        break;
-    case LAMBDA:
-        fputs("(lambda ", stdout);
-        *just_atom = false;
-        print_node(node->lambda.vars, just_atom);
-        print_node(node->lambda.expr, just_atom);
-        putchar(')');
         break;
     default:
         print_atom(node, just_atom); 
     }
 }
-
-typedef struct Env {
-    GHashTable *dict;
-    struct Env *outer;
-} Env;
 
 Node *env_find(Env *env, char const *var) {
     if (env == NULL) {
@@ -295,6 +258,10 @@ void env_destroy(Env *env) {
     g_hash_table_destroy(env->dict);
 }
 
+void env_replace(Env *env, char *key, Node *value) {
+    g_hash_table_replace(env->dict, key, value);
+}
+
 void bind_args(GHashTable *dict, GSList *names, GSList *values) {
     GSList *name = names, *value = values;
     for (;;) {
@@ -311,47 +278,71 @@ void bind_args(GHashTable *dict, GSList *names, GSList *values) {
 
 Node *eval(Node *node, Env *env) {
     switch (node->form) {
-    case VARREF:
+    case IDENTIFIER:
         return env_find(env, node->s);
     case LIST:
         {
-            GSList *exps = NULL;
-            for (GSList *x = node->list; x; x = x->next) {
-                exps = g_slist_prepend(exps, eval(x->data, env));
-            }
-            exps = g_slist_reverse(exps);
-            Node *proc = exps->data;
-            if (proc->form != LAMBDA) abort();
-            GSList *args = exps->next;
-            GSList *arg_names = proc->lambda.vars->list;
-            Env sub_env[1];
-            env_init(sub_env, env);
-            bind_args(sub_env->dict, arg_names, args);
-            Node *ret = eval(proc->lambda.expr, sub_env);
-            env_destroy(sub_env);
-            return ret;
-        }
-    case DEFINE:
-        {
-            Node *value = eval(node->define.expr, env);
-            g_hash_table_insert(env->dict, node->define.var, value);
-            return NULL;
-        }
-    case LAMBDA:
-        return node;
-    case BEGIN:
-        {
-            Node *ret = NULL;
-            for (GSList *list = node->list; list; list = list->next) {
-                ret = eval(list->data, env);
-            }
-            return ret;
+            Node *proc = eval(*node->list->nodes, env);
+            return proc->run(proc, node->list->nodes, node->list->len, env);
         }
     case INTEGER:
         return node;
     default:
+        fprintf(stderr, "can't eval form: %d\n", node->form);
         abort();
     }
+}
+
+Node *multiply(Node *proc, Node *args[], int count, Env *env) {
+    if (count < 3) abort();
+    Node *ret = malloc(sizeof *ret);
+    ret->form = INTEGER;
+    Node *op = eval(args[1], env);
+    if (op->form != INTEGER) abort();
+    ret->i = op->i;
+    for (int i = 2; i < count; i++) {
+        op = eval(args[i], env);
+        ret->i *= op->i;
+    }
+    return ret;
+}
+
+Node *assign(Node *proc, Node *args[], int count, Env *env) {
+    if (count != 3) abort();
+    Node *var = args[1];
+    if (var->form != IDENTIFIER) abort();
+    Node *value = eval(args[2], env);
+    env_replace(env, var->s, value);
+    return NULL;
+}
+
+Node *lambda_call(Node *proc, Node *args[], int count, Env *env) {
+    if (proc->list->len != count) abort();
+    Env sub_env[1];
+    env_init(sub_env, env);
+    for (size_t i = 0; i < count - 1; i++) {
+        env_replace(sub_env, proc->list->nodes[i]->s, eval(args[i+1], env));
+    }
+    return eval(proc->list->nodes[proc->list->len-1], sub_env);
+}
+
+Node *lambda(Node *proc, Node *args[], int count, Env *env) {
+    Node *ret = malloc(sizeof *ret);
+    ret->form = LAMBDA;
+    ret->run = lambda_call;
+    ret->list->nodes = malloc((count-1)*sizeof(Node *));
+    ret->list->cap = ret->list->len = count - 1;
+    memcpy(ret->list->nodes, args+1, sizeof *args * (count-1));
+    return ret;
+}
+
+Node *new_callable_node(NodeFunc run) {
+    Node *ret = malloc(sizeof *ret);
+    *ret = (Node){
+        .form = LAMBDA,
+        .run = run,
+    };
+    return ret;
 }
 
 int main(int argc, char **argv) {
@@ -369,16 +360,24 @@ int main(int argc, char **argv) {
         .line = 1,
         .col = 1,
     };
-    next_token(&lexer);
-    Node *node = parse(&lexer);
-    bool just_atom = false;
-    print_node(node, &just_atom);
-    putchar('\n');
     Env top_env[1];
     env_init(top_env, NULL);
-    Node *result = eval(node, top_env);
+    env_replace(top_env, "*", new_callable_node(multiply));
+    env_replace(top_env, "=", new_callable_node(assign));
+    env_replace(top_env, "^", new_callable_node(lambda));
+    next_token(&lexer);
+    Node *result = NULL;
+    while (lexer.token->type != INVALID) {
+        Node *node = parse(&lexer);
+        bool just_atom = false;
+        print_node(node, &just_atom);
+        putchar('\n');
+        result = eval(node, top_env);
+        just_atom = false;
+        print_node(result, &just_atom);
+        putchar('\n');
+    }
     env_destroy(top_env);
-    just_atom = false;
-    print_node(result, &just_atom);
-    return !node;
+    if (fclose(token_file)) abort();
+    return !result;
 }

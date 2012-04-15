@@ -1,4 +1,2 @@
-(begin
-  (define square (lambda (x) (* x x)))
-  (square 7)
-)
+(= square (^ x (* x x)))
+(square 7)
