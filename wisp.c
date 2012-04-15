@@ -38,6 +38,7 @@ typedef enum {
     LIST,
     BEGIN,
     LAMBDA,
+    BOOLEAN,
 } Form;
 
 typedef struct Env {
@@ -49,7 +50,9 @@ typedef struct Node *(*NodeFunc)(struct Node *, struct Node **, int, Env *);
 
 typedef struct Node {
     Form form;
+    int line, col;
     union {
+        bool b;
         long long i;
         double f;
         char *s;
@@ -57,6 +60,11 @@ typedef struct Node {
     };
     NodeFunc run;
 } Node;
+
+typedef struct {
+    bool just_atom;
+    FILE *file;
+} Printer;
 
 char *read_atom(Lexer *lexer) {
     // TODO remove atom length limit
@@ -154,6 +162,8 @@ Node *parse_list(Lexer *lexer) {
     Node *ret = malloc(sizeof *ret);
     memset(ret, 0, sizeof *ret);
     ret->form = LIST;
+    ret->line = t->line;
+    ret->col = t->col;
     while (t->type != END) {
         list_append(ret->list, parse(lexer));
     }
@@ -174,10 +184,25 @@ Node *parse_atom(Lexer *lexer) {
     } else if (isdigit(tn->value[0])) {
         node->form = INTEGER;
         if (1 != sscanf(tn->value, "%lld", &node->i)) abort();
+    } else if (tn->value[0] == '#') {
+        node->form = BOOLEAN;
+        switch (tn->value[1]) {
+        case 't':
+            node->b = true;
+            break;
+        case 'f':
+            node->b = false;
+            break;
+        default:
+            return NULL;
+        }
+        if (tn->value[2]) return NULL;
     } else {
         node->form = IDENTIFIER;
         node->s = strdup(tn->value);
     }
+    node->line = tn->line;
+    node->col = tn->col;
     next_token(lexer);
     return node;
 }
@@ -194,40 +219,63 @@ Node *parse(Lexer *lexer) {
     }
 }
 
-void print_atom(Node const *node, bool *just_atom) {
-    if (*just_atom) putchar(' ');
+int node_truth(Node const *n) {
+    switch (n->form) {
+    case DOUBLE:
+        return !!n->f;
+    case INTEGER:
+        return !!n->i;
+    case STRING:
+        return !!*n->s;
+    case LIST:
+        return !!n->list->len;
+    case LAMBDA:
+        return !!n->run;
+    case BOOLEAN:
+        return !!n->b;
+    default:
+        fprintf(stderr, "truth value not defined for form %d\n", n->form);
+        return -1;
+    }
+}
+
+void print_atom(Node const *node, Printer *printer) {
+    if (printer->just_atom) fputc(' ', printer->file);
     switch (node->form) {
     case IDENTIFIER:
-        fputs(node->s, stdout);
+        fputs(node->s, printer->file);
         break;
     case INTEGER:
-        printf("%lld", node->i);
+        fprintf(printer->file, "%lld", node->i);
+        break;
+    case BOOLEAN:
+        fputs(node->b ? "#t" : "#f", printer->file);
         break;
     default:
         fprintf(stderr, "can't print atom node form: %d\n", node->form);
         abort();
     }
-    *just_atom = true;
+    printer->just_atom = true;
 }
 
-void print_node(Node const *node, bool *just_atom) {
+void print_node(Node const *node, Printer *printer) {
     if (!node) {
-        fputs("(null)", stdout);
-        *just_atom = true;
+        fputs("(null)", printer->file);
+        printer->just_atom = true;
         return;
     }
     switch (node->form) {
     case LIST:
-        putchar('(');
-        *just_atom = false;
+        fputc('(', printer->file);
+        printer->just_atom = false;
         for (int i = 0; i < node->list->len; i++) {
-            print_node(node->list->nodes[i], just_atom);
+            print_node(node->list->nodes[i], printer);
         }
-        putchar(')');
-        *just_atom = false;
+        fputc(')', printer->file);
+        printer->just_atom = false;
         break;
     default:
-        print_atom(node, just_atom); 
+        print_atom(node, printer); 
     }
 }
 
@@ -258,33 +306,33 @@ void env_destroy(Env *env) {
     g_hash_table_destroy(env->dict);
 }
 
-void env_replace(Env *env, char *key, Node *value) {
-    g_hash_table_replace(env->dict, key, value);
-}
-
-void bind_args(GHashTable *dict, GSList *names, GSList *values) {
-    GSList *name = names, *value = values;
-    for (;;) {
-        if (!name || !value) break;
-        g_hash_table_insert(dict, name, value);
-        name = name->next;
-        value = value->next;
-    }
-    if (!!name ^ !!value) {
-        fprintf(stderr, "argument count mismatch\n");
-        abort();
-    }
+void env_insert(Env *env, char *key, Node *value) {
+    g_hash_table_insert(env->dict, key, value);
 }
 
 Node *eval(Node *node, Env *env) {
     switch (node->form) {
     case IDENTIFIER:
-        return env_find(env, node->s);
+        {
+            Node *ret = env_find(env, node->s);
+            if (!ret) {
+                fprintf(stderr, "line %d, col %d: symbol not found: %s\n", node->line, node->col, node->s);
+                return NULL;
+            }
+            return ret;
+        }
     case LIST:
         {
             Node *proc = eval(*node->list->nodes, env);
+            if (!proc) {
+                fprintf(stderr, "error evaluating ");
+                print_node(*node->list->nodes, &(Printer){.file=stderr});
+                fputc('\n', stderr);
+                return NULL;
+            }
             return proc->run(proc, node->list->nodes, node->list->len, env);
         }
+    case BOOLEAN:
     case INTEGER:
         return node;
     default:
@@ -308,11 +356,15 @@ Node *multiply(Node *proc, Node *args[], int count, Env *env) {
 }
 
 Node *assign(Node *proc, Node *args[], int count, Env *env) {
-    if (count != 3) abort();
+    if (count != 3) {
+        fprintf(stderr, "line %d, col %d: expected 2 arguments, %d were given\n",
+                args[0]->line, args[1]->col, count - 1);
+        return NULL;
+    }
     Node *var = args[1];
     if (var->form != IDENTIFIER) abort();
     Node *value = eval(args[2], env);
-    env_replace(env, var->s, value);
+    env_insert(env, var->s, value);
     return NULL;
 }
 
@@ -321,7 +373,7 @@ Node *lambda_call(Node *proc, Node *args[], int count, Env *env) {
     Env sub_env[1];
     env_init(sub_env, env);
     for (size_t i = 0; i < count - 1; i++) {
-        env_replace(sub_env, proc->list->nodes[i]->s, eval(args[i+1], env));
+        env_insert(sub_env, proc->list->nodes[i]->s, eval(args[i+1], env));
     }
     return eval(proc->list->nodes[proc->list->len-1], sub_env);
 }
@@ -333,6 +385,56 @@ Node *lambda(Node *proc, Node *args[], int count, Env *env) {
     ret->list->nodes = malloc((count-1)*sizeof(Node *));
     ret->list->cap = ret->list->len = count - 1;
     memcpy(ret->list->nodes, args+1, sizeof *args * (count-1));
+    return ret;
+}
+
+Node *if_form(Node *proc, Node *args[], int count, Env *env) {
+    if (count != 4) {
+        fprintf(stderr, "wrong argument count\n");
+        return NULL;
+    }
+    Node *test = eval(args[1], env);
+    int truth = node_truth(test);
+    if (truth < 0) return NULL;
+    if (truth) return eval(args[2], env);
+    else return eval(args[3], env);
+}
+
+Node *subtract(Node *proc, Node *args[], int count, Env *env) {
+    if (count != 3) return NULL;
+    Node *left = eval(args[1], env);
+    Node *right = eval(args[2], env);
+    Node *ret = malloc(sizeof *ret);
+    *ret = (Node){
+        .col = proc->col,
+        .line = proc->line,
+        .form = INTEGER,
+        .i = left->i - right->i,
+    };
+    return ret;
+
+}
+
+Node *less_than(Node *proc, Node *args[], int count, Env *env) {
+    if (count != 3) {
+        fprintf(stderr, "wrong number of args\n");
+        return NULL;
+    }
+    Node *left = eval(args[1], env);
+    if (!left) return NULL;
+    Node *right = eval(args[2], env);
+    if (!right) return NULL;
+    if (left->form != INTEGER || right->form != INTEGER) {
+        fprintf(stderr, "unsupported types\n");
+        return NULL;
+    }
+    Node *ret = malloc(sizeof *ret);
+    *ret = (Node){
+        .line = proc->line,
+        .col = proc->col,
+        .form = BOOLEAN,
+        .b = left->i < right->i,
+    };
     return ret;
 }
 
@@ -362,19 +464,20 @@ int main(int argc, char **argv) {
     };
     Env top_env[1];
     env_init(top_env, NULL);
-    env_replace(top_env, "*", new_callable_node(multiply));
-    env_replace(top_env, "=", new_callable_node(assign));
-    env_replace(top_env, "^", new_callable_node(lambda));
+    env_insert(top_env, "*", new_callable_node(multiply));
+    env_insert(top_env, "=", new_callable_node(assign));
+    env_insert(top_env, "^", new_callable_node(lambda));
+    env_insert(top_env, "if", new_callable_node(if_form));
+    env_insert(top_env, "<", new_callable_node(less_than));
+    env_insert(top_env, "-", new_callable_node(subtract));
     next_token(&lexer);
     Node *result = NULL;
     while (lexer.token->type != INVALID) {
         Node *node = parse(&lexer);
-        bool just_atom = false;
-        print_node(node, &just_atom);
+        print_node(node, &(Printer){.file=stderr});
         putchar('\n');
         result = eval(node, top_env);
-        just_atom = false;
-        print_node(result, &just_atom);
+        print_node(result, &(Printer){.file=stderr});
         putchar('\n');
     }
     env_destroy(top_env);
