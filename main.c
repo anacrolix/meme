@@ -36,7 +36,6 @@ typedef enum {
     INTEGER,
     STRING,
     LIST,
-    BEGIN,
     LAMBDA,
     BOOLEAN,
 } Form;
@@ -49,6 +48,7 @@ typedef struct Env {
 typedef struct Node *(*NodeFunc)(struct Node *, struct Node **, int, Env *);
 
 typedef struct Node {
+    int refs;
     Form form;
     int line, col;
     union {
@@ -65,6 +65,12 @@ typedef struct {
     bool just_atom;
     FILE *file;
 } Printer;
+
+Node *node_new() {
+    Node *ret = calloc(1, sizeof *ret);
+    ret->refs = 1;
+    return ret;
+}
 
 char *read_atom(Lexer *lexer) {
     // TODO remove atom length limit
@@ -135,6 +141,7 @@ bool next_token(Lexer *lexer) {
     default:
         if (c != ungetc(c, lexer->file)) abort();
         init_token(lexer, ATOM);
+        free(lexer->token->value);
         lexer->token->value = read_atom(lexer);
         return true;
     }
@@ -142,6 +149,41 @@ bool next_token(Lexer *lexer) {
     return true;
 }
 
+void list_destroy(List *);
+
+void node_ref(Node *n) {
+    if (n->refs <= 0) abort();
+    n->refs++;
+}
+
+void node_unref(Node *n) {
+    if (n->refs <= 0) abort();
+    if (n->refs > 1) {
+        n->refs--;
+        return;
+    }
+    switch (n->form) {
+    case LIST:
+    case LAMBDA:
+        list_destroy(n->list);
+        break;
+    case IDENTIFIER:
+    case STRING:
+        free(n->s);
+        break;
+    default:
+        break;
+    }
+}
+
+void list_destroy(List *l) {
+    for (int i = 0; i < l->len; i++) {
+        node_unref(l->nodes[i]);
+    }
+    free(l->nodes);
+    l->cap = 0;
+    l->len = 0;
+}
 void list_init(List *l) {
     memset(l, 0, sizeof *l);
 }
@@ -153,31 +195,34 @@ void list_append(List *l, Node *n) {
         l->nodes = realloc(l->nodes, l->cap * sizeof *l->nodes);
     } else if (l->len > l->cap) abort();
     l->nodes[l->len++] = n;
+    node_ref(n);
 }
 
 Node *parse(Lexer *lexer);
 
 Node *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
-    Node *ret = malloc(sizeof *ret);
-    memset(ret, 0, sizeof *ret);
+    Node *ret = node_new();
     ret->form = LIST;
     ret->line = t->line;
     ret->col = t->col;
     while (t->type != END) {
-        list_append(ret->list, parse(lexer));
+        Node *node = parse(lexer);
+        if (!node) abort();
+        list_append(ret->list, node);
     }
     next_token(lexer);
     return ret;
 }
 
 Node *parse_atom(Lexer *lexer) {
-    Token const *tn = lexer->token;
-    Node *node = malloc(sizeof *node);
+    Token *const tn = lexer->token;
+    Node *node = node_new();
+    node->line = tn->line;
+    node->col = tn->col;
     if (tn->value[0] == '"') {
         node->form = STRING;
         node->s = strdup(tn->value + 1);
-        return node;
     } else if (strchr(tn->value, '.')) {
         node->form = DOUBLE;
         if (1 != sscanf(tn->value, "%lf", &node->f)) abort();
@@ -194,15 +239,17 @@ Node *parse_atom(Lexer *lexer) {
             node->b = false;
             break;
         default:
+            node_unref(node);
             return NULL;
         }
-        if (tn->value[2]) return NULL;
+        if (tn->value[2]) {
+            node_unref(node);
+            return NULL;
+        }
     } else {
         node->form = IDENTIFIER;
         node->s = strdup(tn->value);
     }
-    node->line = tn->line;
-    node->col = tn->col;
     next_token(lexer);
     return node;
 }
@@ -292,12 +339,16 @@ Node *env_find(Env *env, char const *var) {
         fprintf(stderr, "uninitialized: %s\n", var);
         abort();
     }
+    node_ref(value);
     return value;
 }
 
 void env_init(Env *env, Env *outer) {
     *env = (Env){
-        .dict = g_hash_table_new(g_str_hash, g_str_equal),
+        .dict = g_hash_table_new_full(g_str_hash,
+                                      g_str_equal,
+                                      free,
+                                      (GDestroyNotify)node_unref),
         .outer = outer,
     };
 }
@@ -307,7 +358,8 @@ void env_destroy(Env *env) {
 }
 
 void env_insert(Env *env, char *key, Node *value) {
-    g_hash_table_insert(env->dict, key, value);
+    node_ref(value);
+    g_hash_table_insert(env->dict, strdup(key), value);
 }
 
 Node *eval(Node *node, Env *env) {
@@ -316,7 +368,8 @@ Node *eval(Node *node, Env *env) {
         {
             Node *ret = env_find(env, node->s);
             if (!ret) {
-                fprintf(stderr, "line %d, col %d: symbol not found: %s\n", node->line, node->col, node->s);
+                fprintf(stderr, "line %d, col %d: symbol not found: %s\n",
+                        node->line, node->col, node->s);
                 return NULL;
             }
             return ret;
@@ -330,7 +383,9 @@ Node *eval(Node *node, Env *env) {
                 fputc('\n', stderr);
                 return NULL;
             }
-            return proc->run(proc, node->list->nodes, node->list->len, env);
+            Node *ret = proc->run(proc, node->list->nodes, node->list->len, env);
+            node_unref(proc);
+            return ret;
         }
     case BOOLEAN:
     case INTEGER:
@@ -343,14 +398,16 @@ Node *eval(Node *node, Env *env) {
 
 Node *multiply(Node *proc, Node *args[], int count, Env *env) {
     if (count < 3) abort();
-    Node *ret = malloc(sizeof *ret);
+    Node *ret = node_new();
     ret->form = INTEGER;
     Node *op = eval(args[1], env);
     if (op->form != INTEGER) abort();
     ret->i = op->i;
+    node_unref(op);
     for (int i = 2; i < count; i++) {
         op = eval(args[i], env);
         ret->i *= op->i;
+        node_unref(op);
     }
     return ret;
 }
@@ -373,13 +430,20 @@ Node *lambda_call(Node *proc, Node *args[], int count, Env *env) {
     Env sub_env[1];
     env_init(sub_env, env);
     for (size_t i = 0; i < count - 1; i++) {
-        env_insert(sub_env, proc->list->nodes[i]->s, eval(args[i+1], env));
+        Node *v = eval(args[i + 1], env);
+        if (!v) {
+            env_destroy(sub_env);
+            return NULL;
+        }
+        env_insert(sub_env, proc->list->nodes[i]->s, v);
     }
-    return eval(proc->list->nodes[proc->list->len-1], sub_env);
+    Node *ret = eval(proc->list->nodes[proc->list->len-1], sub_env);
+    env_destroy(sub_env);
+    return ret;
 }
 
 Node *lambda(Node *proc, Node *args[], int count, Env *env) {
-    Node *ret = malloc(sizeof *ret);
+    Node *ret = node_new();
     ret->form = LAMBDA;
     ret->run = lambda_call;
     ret->list->nodes = malloc((count-1)*sizeof(Node *));
@@ -394,6 +458,7 @@ Node *if_form(Node *proc, Node *args[], int count, Env *env) {
         return NULL;
     }
     Node *test = eval(args[1], env);
+    if (!test) return NULL;
     int truth = node_truth(test);
     if (truth < 0) return NULL;
     if (truth) return eval(args[2], env);
@@ -404,13 +469,9 @@ Node *subtract(Node *proc, Node *args[], int count, Env *env) {
     if (count != 3) return NULL;
     Node *left = eval(args[1], env);
     Node *right = eval(args[2], env);
-    Node *ret = malloc(sizeof *ret);
-    *ret = (Node){
-        .col = proc->col,
-        .line = proc->line,
-        .form = INTEGER,
-        .i = left->i - right->i,
-    };
+    Node *ret = node_new();
+    ret->form = INTEGER;
+    ret->i = left->i - right->i;
     return ret;
 
 }
@@ -439,11 +500,9 @@ Node *less_than(Node *proc, Node *args[], int count, Env *env) {
 }
 
 Node *new_callable_node(NodeFunc run) {
-    Node *ret = malloc(sizeof *ret);
-    *ret = (Node){
-        .form = LAMBDA,
-        .run = run,
-    };
+    Node *ret = node_new();
+    ret->form = LAMBDA;
+    ret->run = run;
     return ret;
 }
 
@@ -473,10 +532,12 @@ int main(int argc, char **argv) {
     next_token(&lexer);
     Node *result = NULL;
     while (lexer.token->type != INVALID) {
+        if (result) node_unref(result);
         Node *node = parse(&lexer);
         print_node(node, &(Printer){.file=stderr});
         putchar('\n');
         result = eval(node, top_env);
+        node_unref(node);
         print_node(result, &(Printer){.file=stderr});
         putchar('\n');
     }
