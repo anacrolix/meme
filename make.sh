@@ -1,1 +1,5 @@
-cc -o meme main.c `pkg-config --cflags --libs glib-2.0` -Wall -g -std=gnu1x 
+cc -o meme *.c \
+    `pkg-config --cflags --libs glib-2.0` \
+    -std=gnu1x -fplan9-extensions \
+    -Wall -Wextra -Werror=implicit-function-declaration -Wno-unused-parameter \
+    -g
