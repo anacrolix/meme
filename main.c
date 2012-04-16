@@ -31,6 +31,7 @@ typedef struct {
 } List;
 
 typedef enum {
+    NONE,
     IDENTIFIER,
     DOUBLE,
     INTEGER,
@@ -70,6 +71,11 @@ Node *node_new() {
     Node *ret = calloc(1, sizeof *ret);
     ret->refs = 1;
     return ret;
+}
+
+// The "none", "()", empty, null node
+Node *null_node() {
+    return node_new();
 }
 
 char *read_atom(Lexer *lexer) {
@@ -298,6 +304,10 @@ void print_atom(Node const *node, Printer *printer) {
     case BOOLEAN:
         fputs(node->b ? "#t" : "#f", printer->file);
         break;
+    case NONE:
+        fputs("()", stderr);
+        printer->just_atom = false;
+        return;
     default:
         fprintf(stderr, "can't print atom node form: %d\n", node->form);
         abort();
@@ -357,8 +367,8 @@ void env_destroy(Env *env) {
     g_hash_table_destroy(env->dict);
 }
 
+// steals a reference
 void env_insert(Env *env, char *key, Node *value) {
-    node_ref(value);
     g_hash_table_insert(env->dict, strdup(key), value);
 }
 
@@ -421,8 +431,9 @@ Node *assign(Node *proc, Node *args[], int count, Env *env) {
     Node *var = args[1];
     if (var->form != IDENTIFIER) abort();
     Node *value = eval(args[2], env);
+    if (!value) return NULL;
     env_insert(env, var->s, value);
-    return NULL;
+    return null_node();
 }
 
 Node *lambda_call(Node *proc, Node *args[], int count, Env *env) {
