@@ -2,8 +2,8 @@
 #include "meme.h"
 
 Node *eval(Node *node, Env *env) {
-    node_ref(node);
     Node *ret = node;
+    node_ref(ret);
     while (ret->type->eval) {
 #if 0
         fprintf(stderr, "evaluating: ");
