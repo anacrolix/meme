@@ -90,15 +90,17 @@ Node *lambda(Node *proc, Node *args[], int count, Env *env) {
 
 Node *if_form(Node *proc, Node *args[], int count, Env *env) {
     if (count != 3) {
-        fprintf(stderr, "wrong argument count\n");
+        fprintf(stderr, "expected 3 arguments\n");
         return NULL;
     }
     Node *test = eval(args[0], env);
     if (!test) return NULL;
     int truth = node_truth(test);
+    node_unref(test);
     if (truth < 0) return NULL;
-    if (truth) return eval(args[1], env);
-    else return eval(args[2], env);
+    Node *ret = truth ? args[1] : args[2];
+    node_ref(ret);
+    return ret;
 }
 
 static Int *eval_to_int(Node *node, Env *env) {
