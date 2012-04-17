@@ -1,20 +1,24 @@
 #include "list.h"
 #include "meme.h"
+#include <assert.h>
 
-void list_print(List const *n, Printer *p) {
+void list_print(Node const *nn, Printer *p) {
+    List const *n = (List const *)nn;
     fputc('(', p->file);
     p->just_atom = false;
     for (int i = 0; i < n->len; i++) {
-        print_node(n->data[i], p);
+        node_print(n->data[i], p);
     }
     fputc(')', p->file);
     p->just_atom = false;
 }
 
-Node *list_eval(List *node, Env *env) {
-    Node *callable = eval(*node->data, env);
+static Node *list_eval(Node *node, Env *env) {
+    assert(node->type = &list_type);
+    List *list = (List *)node;
+    Node *callable = eval(list->data[0], env);
     if (!callable) return NULL;
-    Node *ret = call_node(callable, node->data + 1, node->len - 1, env);
+    Node *ret = call_node(callable, list->data + 1, list->len - 1, env);
     node_unref(callable);
     return ret;
 }
@@ -40,8 +44,11 @@ List *list_append(List *l, Node *n) {
     return l;
 }
 
-Type list_type = {
+Type const list_type = {
+    .name = "list",
     .dealloc = list_dealloc,
+    .print = list_print,
+    .eval = list_eval,
 };
 
 List *list_new() {

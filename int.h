@@ -9,4 +9,4 @@ typedef struct {
 
 extern Type const int_type;
 
-Int *int_new();
+Int *int_new(long long);

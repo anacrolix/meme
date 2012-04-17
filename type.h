@@ -10,6 +10,7 @@ typedef Node *(*CallFunc)(Node *, Node *[], int count, Env *);
 typedef Node *(*EvalFunc)(Node *, Env *);
 
 typedef struct {
+    char const *name;
     EvalFunc eval;
     int (*truth)(Node const *);
     void (*dealloc)(Node *);

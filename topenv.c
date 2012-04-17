@@ -1,4 +1,5 @@
 #include "meme.h"
+#include <assert.h>
 #include <string.h>
 
 Node *multiply(Node *optr, Node *args[], int count, Env *env) {
@@ -38,9 +39,8 @@ typedef struct {
     Var *parms[0]; 
 } Closure;
 
-Type const closure_type;
-
-Node *closure_call(Closure *optr, Node *args[], int argc, Env *env) {
+static Node *closure_call(Node *_optr, Node *args[], int argc, Env *env) {
+    Closure *optr = (Closure *)_optr;
     if (optr->parmc != argc) return NULL;
     Env *call_env = env_new(optr->env);
     for (int i = 0; i < argc; i++) {
@@ -56,6 +56,11 @@ Node *closure_call(Closure *optr, Node *args[], int argc, Env *env) {
     return ret;
 }
 
+Type const closure_type = {
+    .name = "closure",
+    .call = closure_call,
+};
+
 Node *lambda(Node *proc, Node *args[], int count, Env *env) {
     for (int i = 0; i < count - 1; i++) {
         if (args[i]->type != &var_type) return NULL;
@@ -66,6 +71,7 @@ Node *lambda(Node *proc, Node *args[], int count, Env *env) {
     node_ref(env);
     ret->parmc = count - 1;
     for (int i = 0; i < count - 1; i++) {
+        if (args[i]->type != &var_type) abort();
         ret->parms[i] = (Var *)args[i];
         node_ref(args[i]);
     }
@@ -75,16 +81,16 @@ Node *lambda(Node *proc, Node *args[], int count, Env *env) {
 }
 
 Node *if_form(Node *proc, Node *args[], int count, Env *env) {
-    if (count != 4) {
+    if (count != 3) {
         fprintf(stderr, "wrong argument count\n");
         return NULL;
     }
-    Node *test = eval(args[1], env);
+    Node *test = eval(args[0], env);
     if (!test) return NULL;
     int truth = node_truth(test);
     if (truth < 0) return NULL;
-    if (truth) return eval(args[2], env);
-    else return eval(args[3], env);
+    if (truth) return eval(args[1], env);
+    else return eval(args[2], env);
 }
 
 Node *subtract(Node *proc, Node *args[], int count, Env *env) {
@@ -93,12 +99,9 @@ Node *subtract(Node *proc, Node *args[], int count, Env *env) {
         if (args[i]->type != &int_type) return NULL;
     }
     Int **iargs = (Int **)args;
-    Int *ret = int_new();
-    if (count == 1) ret->ll = -iargs[0]->ll;
-    else {
-        ret->ll = iargs[0]->ll;
-        for (int i = 1; i < count; i++) ret->ll -= iargs[i]->ll;
-    }
+    if (count == 1) return int_new(-iargs[0]->ll);
+    Int *ret = int_new(iargs[0]->ll);
+    for (int i = 1; i < count; i++) ret->ll -= iargs[i]->ll;
     return ret;
 }
 
@@ -126,7 +129,18 @@ typedef struct {
     CallFunc call;
 } Special;
 
-Type const special_type;
+extern Type const special_type;
+
+Node *special_call(Node *_func, Node *args[], int count, Env *env) {
+    assert(_func->type == &special_type);
+    Special *func = (Special *)_func;
+    return func->call(func, args, count, env);
+}
+
+Type const special_type = {
+    .name = "special",
+    .call = special_call,
+};
 
 Special *special_new(CallFunc call) {
     Special *ret = malloc(sizeof *ret);

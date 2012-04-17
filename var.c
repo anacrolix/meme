@@ -1,5 +1,6 @@
 #include "var.h"
 #include "meme.h"
+#include <assert.h>
 #include <string.h>
 
 typedef struct Var {
@@ -7,8 +8,10 @@ typedef struct Var {
     char *s;
 } Var;
 
-Node *var_eval(Var *node, Env *env) {
-    return env_find(env, node->s);
+Node *var_eval(Node *node, Env *env) {
+    assert(node->type == &var_type);
+    Var *var = (Var *)node;
+    return env_find(env, var->s);
 }
 
 char const *var_get_name(Var *v) {
@@ -21,7 +24,17 @@ void var_print(Node const *n, Printer *p) {
     p->just_atom = true;
 }
 
-Type const var_type;
+static void var_dealloc(Node *node) {
+    Var *var = (Var *)node;
+    free(var->s);
+}
+
+Type const var_type = {
+    .name = "var",
+    .print = var_print,
+    .dealloc = var_dealloc,
+    .eval = var_eval
+};
 
 Var *var_new(char const *s) {
     Var *ret = malloc(sizeof *ret);

@@ -22,11 +22,12 @@ int main(int argc, char **argv) {
     while (lexer.token->type != INVALID) {
         if (result) node_unref(result);
         Node *node = parse(&lexer);
-        print_node(node, &(Printer){.file=stderr});
+        node_print(node, &(Printer){.file=stderr});
         putchar('\n');
         result = eval(node, top_env);
         node_unref(node);
-        print_node(result, &(Printer){.file=stderr});
+        if (!result) break;
+        node_print(result, &(Printer){.file=stderr});
         putchar('\n');
     }
     node_unref(top_env);

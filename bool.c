@@ -1,19 +1,37 @@
 #include "bool.h"
 
-
 typedef struct {
-    Node;
+    Node ;
     bool b;
 } Bool;
 
-Type bool_type;
-
-Bool *bool_node_new(bool b) {
-    Bool *ret = malloc(sizeof *ret);
-    node_init(ret, &bool_type);
-    ret->b = b;
-    return ret;
+static void bool_print(Node const *n, Printer *p) {
+    if (p->just_atom) fputc(' ', p->file);
+    fputs(((Bool *)n)->b ? "#t" : "#f", p->file);
+    p->just_atom = true;
 }
 
-Node *true_node;
-Node *false_node;
+Type const bool_type = {
+    .name = "bool",
+    .print = bool_print,
+};
+
+Bool true_node_storage = {
+    {
+        .refs = 1,
+        .type = &bool_type,
+    },
+    .b = true,
+};
+
+Node *true_node = &true_node_storage;
+
+Bool false_node_storage = {
+    {
+        .refs = 1,
+        .type = &bool_type,
+    },
+    .b = false,
+};
+
+Node *false_node = &false_node_storage;
