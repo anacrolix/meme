@@ -5,6 +5,11 @@ Node *eval(Node *node, Env *env) {
     node_ref(node);
     Node *ret = node;
     while (ret->type->eval) {
+#if 0
+        fprintf(stderr, "evaluating: ");
+        node_print(ret, &(Printer){.file=stderr});
+        fputc('\n', stderr);
+#endif
         node = ret->type->eval(ret, env);
         if (!node) {
             fputs("error evaluating: ", stderr);
@@ -15,6 +20,11 @@ Node *eval(Node *node, Env *env) {
         }
         node_unref(ret);
         ret = node;
+#if 0
+        fprintf(stderr, "result: ");
+        node_print(ret, &(Printer){.file=stderr});
+        fputc('\n', stderr);
+#endif
     }
     return ret;
 }
