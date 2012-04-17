@@ -1,36 +1,53 @@
 #include "meme.h"
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 
-int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s script\n", argv[0]);
-        return 2;
-    }
-    FILE *token_file = fopen(argv[1], "rb");
-    if (!token_file) {
-        perror("fopen");
-        return 1;
-    }
+static Node *run_file(FILE *file, Env *env) {
     Lexer lexer = {
-        .file = token_file,
+        .file = file,
         .line = 1,
         .col = 1,
     };
-    Env *top_env = top_env_new();
     next_token(&lexer);
     Node *result = NULL;
     while (lexer.token->type != INVALID) {
         if (result) node_unref(result);
         Node *node = parse(&lexer);
-        node_print(node, &(Printer){.file=stderr});
-        putchar('\n');
-        result = eval(node, top_env);
+        result = eval(node, env);
         node_unref(node);
         if (!result) break;
-        node_print(result, &(Printer){.file=stderr});
-        putchar('\n');
     }
-    node_unref(top_env);
-    if (fclose(token_file)) abort();
-    return !result;
+    free(lexer.token->value);
+    return result;
+}
+
+int main(int argc, char **argv) {
+    Node *result = NULL;
+    Env *env = top_env_new();
+    if (argc == 1) {
+        result = run_file(stdin, env);
+    } else {
+        for (int i = 1; i < argc; i++) {
+            FILE *file = fopen(argv[i], "rb");
+            if (!file) {
+                fprintf(stderr, "%s: %s\n", argv[i], strerror(errno));
+                if (result) node_unref(result);
+                result = NULL;
+                break;
+            }
+            if (result) node_unref(result);
+            result = run_file(file, env);
+            if (fclose(file)) abort();
+            if (!result) break;
+        }
+    }
+    node_unref(env);
+    if (result) {
+        node_print(result, &(Printer){.file=stdout});
+        putchar('\n');
+        node_unref(result);
+        return 0;
+    }
+    return 1;
 }
