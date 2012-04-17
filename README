@@ -1,0 +1,15 @@
+# About
+
+meme is a minimal scheme. It's implemented in C, has GC, and should express reasonable TCO. Run the examples like so:
+
+    $ ./meme fact.w
+    5040
+
+
+# Special forms
+
+ (^ args... body)
+    Captures the environment when invoked. Parameters are bound to the name of each `arg` in the evaluation of the `body` if called.
+ (- a b...)
+    The integers of `b` are each subtracted from the value of `a`.
+
