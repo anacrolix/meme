@@ -1,17 +1,9 @@
 #pragma once
 
-#include "type.h"
-
-#include <stdbool.h>
-#include <stdio.h>
-
 typedef struct Node Node;
 typedef struct Env Env;
-
-typedef struct Printer {
-    bool just_atom;
-    FILE *file;
-} Printer;
+typedef struct Type Type;
+typedef struct Printer Printer;
 
 typedef struct Node {
     int refs;

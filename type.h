@@ -9,7 +9,7 @@ typedef struct Printer Printer;
 typedef Node *(*CallFunc)(Node *, Node *[], int count, Env *);
 typedef Node *(*EvalFunc)(Node *, Env *);
 
-typedef struct {
+typedef struct Type {
     char const *name;
     EvalFunc eval;
     int (*truth)(Node const *);
