@@ -11,9 +11,15 @@ static void bool_print(Node const *n, Printer *p) {
     p->just_atom = true;
 }
 
+static int bool_truth(Node const *n) {
+    Bool *b = (Bool *)n;
+    return !!b->b;
+}
+
 Type const bool_type = {
     .name = "bool",
     .print = bool_print,
+    .truth = bool_truth,
 };
 
 Bool true_node_storage = {
