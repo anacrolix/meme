@@ -74,7 +74,7 @@ bool next_token(Lexer *lexer) {
         init_token(lexer, ATOM);
         free(lexer->token->value);
         lexer->token->value = read_atom(lexer);
-        return true;
+        return !!lexer->token->value;
     }
     lexer->col++;
     return true;

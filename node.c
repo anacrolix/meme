@@ -1,4 +1,5 @@
 #include "node.h"
+#include "meme.h"
 #include <assert.h>
 
 void node_print(Node const *n, Printer *p) {
@@ -18,12 +19,12 @@ Node *call_node(Node *node, Node *args[], int nargs, Env *env) {
 }
 
 void node_ref(Node *n) {
-    if (n->refs <= 0) abort();
+    assert(n->refs > 0);
     n->refs++;
 }
 
 void node_unref(Node *n) {
-    if (n->refs <= 0) abort();
+    assert(n->refs > 0);
     if (n->refs > 1) {
         n->refs--;
         return;

@@ -4,6 +4,7 @@
 
 void list_print(Node const *nn, Printer *p) {
     List const *n = (List const *)nn;
+    if (p->just_atom) fputc(' ', p->file);
     fputc('(', p->file);
     p->just_atom = false;
     for (int i = 0; i < n->len; i++) {
