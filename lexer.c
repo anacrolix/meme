@@ -27,10 +27,11 @@ end_loop:
     return strdup(lval);
 }
 
-void discard_whitespace(Lexer *lexer) {
+__attribute__((warn_unused_result))
+static bool discard_whitespace(Lexer *lexer) {
     for (;;) {
         int c = fgetc(lexer->file);
-        if (c < 0) return;
+        if (c < 0) return false;
         switch (c) {
         case ' ':
         case '\t':
@@ -42,7 +43,7 @@ void discard_whitespace(Lexer *lexer) {
             break;
         default:
             if (c != ungetc(c, lexer->file)) abort();
-            return;
+            return true;
         }
     }
 }
@@ -55,7 +56,10 @@ void init_token(Lexer *lexer, TokenType type) {
 }
 
 bool next_token(Lexer *lexer) {
-    discard_whitespace(lexer);
+    if (!discard_whitespace(lexer)) {
+        init_token(lexer, INVALID);
+        return false;
+    }
     int c = fgetc(lexer->file);
     if (c < 0) {
         init_token(lexer, INVALID);
