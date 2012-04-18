@@ -3,6 +3,8 @@
 #include <glib.h>
 #include <string.h>
 
+static Type env_type;
+
 Node *env_find(Env *env, char const *key) {
     if (env == NULL) {
         fprintf(stderr, "symbol not found: %s\n", key);
@@ -24,15 +26,28 @@ void env_set(Env *env, char const *key, Node *value) {
     g_hash_table_insert(env->table, strdup(key), value);
 }
 
-Type env_type;
+Env *env_check(Node *node) {
+    return node->type == &env_type ? (Env *)node : NULL;
+}
+
+static void env_dealloc(Node *node) {
+    Env *env = env_check(node);
+    g_hash_table_destroy(env->table);
+    node_unref(env->outer);
+}
+
+static Type env_type = {
+    .name = "env",
+    .dealloc = env_dealloc,
+};
 
 Env *env_new(Env *outer) {
     Env *ret = malloc(sizeof *ret);
     node_init(ret, &env_type);
     ret->table = g_hash_table_new_full(g_str_hash,
-                                      g_str_equal,
-                                      free,
-                                      (GDestroyNotify)node_unref),
+                                       g_str_equal,
+                                       free,
+                                       (GDestroyNotify)node_unref),
     ret->outer = outer;
     if (outer) node_ref(outer);
     return ret;

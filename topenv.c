@@ -42,6 +42,15 @@ typedef struct {
     Var *parms[0]; 
 } Closure;
 
+void closure_dealloc(Node *node) {
+    Closure *c = (Closure *)c;
+    node_unref(c->expr);
+    node_unref(c->env);
+    for (int i = 0; i < c->parmc; i++) {
+        node_unref((Node *)c->parms[i]);
+    }
+}
+
 void closure_print(Node const *_n, Printer *p) {
     Closure *n = (Closure *)_n;
     fprintf(stderr, "<closure ");
@@ -70,11 +79,12 @@ Type const closure_type = {
     .name = "closure",
     .call = closure_call,
     .print = closure_print,
+    .dealloc = closure_dealloc,
 };
 
 Node *lambda(Node *proc, Node *args[], int count, Env *env) {
     for (int i = 0; i < count - 1; i++) {
-        if (args[i]->type != &var_type) return NULL;
+        if (!var_check(args[i])) return NULL;
     }
     Closure *ret = malloc(sizeof *ret + (count - 1) * sizeof *ret->parms);
     node_init(ret, &closure_type);
@@ -82,7 +92,6 @@ Node *lambda(Node *proc, Node *args[], int count, Env *env) {
     node_ref(env);
     ret->parmc = count - 1;
     for (int i = 0; i < count - 1; i++) {
-        if (args[i]->type != &var_type) abort();
         ret->parms[i] = (Var *)args[i];
         node_ref(args[i]);
     }
@@ -197,7 +206,7 @@ Env *top_env_new() {
     env_set(ret, "*", special_new(multiply));
     env_set(ret, "=", special_new(assign));
     env_set(ret, "^", special_new(lambda));
-    env_set(ret, "if", special_new(if_form));
+    env_set(ret, "?", special_new(if_form));
     env_set(ret, "<", special_new(less_than));
     env_set(ret, "-", special_new(subtract));
     return ret;
