@@ -23,12 +23,15 @@ Node *multiply(Node *optr, Node *args[], int count, Env *env) {
 
 Node *assign(Node *proc, Node *args[], int count, Env *env) {
     if (count != 2) return NULL;
-    char const *key = var_get_name((Var *)args[0]);
+    Var *var = var_check(args[0]);
+    if (!var) return NULL;
+    char const *key = var_get_name(var);
     Node *value = eval(args[1], env);
     if (!value) return NULL;
+    // steals ref to value, copies key
     env_set(env, key, value);
-    node_ref(true_node);
-    return true_node;
+    node_ref(void_node);
+    return void_node;
 }
 
 typedef struct {

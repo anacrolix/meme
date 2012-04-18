@@ -42,3 +42,8 @@ Var *var_new(char const *s) {
     ret->s = strdup(s);
     return ret;
 }
+
+Var *var_check(Node *node) {
+    if (node->type != &var_type) return NULL;
+    return (Var *)node;
+}

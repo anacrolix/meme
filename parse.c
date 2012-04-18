@@ -6,12 +6,13 @@
 Node *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
     List *ret = list_new();
-    while (t->type != END) {
+    for (;;) {
+        next_token(lexer);
+        if (t->type == END) break;
         Node *node = parse(lexer);
         if (!node) abort();
         ret = list_append(ret, node);
     }
-    next_token(lexer);
     return ret;
 }
 
@@ -32,7 +33,6 @@ Node *parse_atom(Lexer *lexer) {
     } else {
         ret = (Node *)var_new(t->value);
     }
-    next_token(lexer);
     return ret;
 }
 
@@ -41,7 +41,6 @@ Node *parse(Lexer *lexer) {
     case ATOM:
         return parse_atom(lexer);
     case START:
-        if (!next_token(lexer)) abort();
         return parse_list(lexer);
     default:
         abort();

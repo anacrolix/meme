@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 
 static Node *run_file(FILE *file, Env *env) {
     Lexer lexer = {
@@ -9,14 +10,18 @@ static Node *run_file(FILE *file, Env *env) {
         .line = 1,
         .col = 1,
     };
-    next_token(&lexer);
     Node *result = NULL;
-    while (lexer.token->type != INVALID) {
+    for (;;) {
+        if (!next_token(&lexer)) break;
         if (result) node_unref(result);
         Node *node = parse(&lexer);
         result = eval(node, env);
         node_unref(node);
         if (!result) break;
+        if (!void_check(result)) {
+            node_print(result, &(Printer){.file=stdout});
+            putchar('\n');
+        }
     }
     free(lexer.token->value);
     return result;
@@ -44,8 +49,6 @@ int main(int argc, char **argv) {
     }
     node_unref(env);
     if (result) {
-        node_print(result, &(Printer){.file=stdout});
-        putchar('\n');
         node_unref(result);
         return 0;
     }

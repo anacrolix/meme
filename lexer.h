@@ -6,6 +6,7 @@ typedef enum {
     ATOM,
     START,
     END,
+    TT_EOF,
 } TokenType;
 
 typedef struct {
@@ -13,11 +14,6 @@ typedef struct {
     TokenType type;
     char *value;
 } Token;
-
-typedef struct {
-    int line, col;
-    char const *fname;
-} Source;
 
 typedef struct Lexer {
     FILE *file;

@@ -1,7 +1,6 @@
 #include "lexer.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 char *read_atom(Lexer *lexer) {
     // TODO remove atom length limit
