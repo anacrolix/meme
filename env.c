@@ -33,7 +33,7 @@ Env *env_check(Node *node) {
 static void env_dealloc(Node *node) {
     Env *env = env_check(node);
     g_hash_table_destroy(env->table);
-    node_unref(env->outer);
+    if (env->outer) node_unref(env->outer);
 }
 
 static Type env_type = {
