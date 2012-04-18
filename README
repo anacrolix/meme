@@ -13,3 +13,6 @@ meme is a minimal scheme. It's implemented in C, has GC, and should express reas
  (- a b...)
     The integers of `b` are each subtracted from the value of `a`.
 
+# TODO
+
+ * Decide on the "nil" type. Void, empty, (), and others are all very similar. 
