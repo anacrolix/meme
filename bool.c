@@ -6,13 +6,13 @@ typedef struct {
     bool b;
 } Bool;
 
-static void bool_print(Node const *n, Printer *p) {
+static void bool_print(Node *n, Printer *p) {
     if (p->just_atom) fputc(' ', p->file);
     fputs(((Bool *)n)->b ? "#t" : "#f", p->file);
     p->just_atom = true;
 }
 
-static int bool_truth(Node const *n) {
+static int bool_truth(Node *n) {
     Bool *b = (Bool *)n;
     return !!b->b;
 }

@@ -2,32 +2,40 @@
 #include <assert.h>
 #include <string.h>
 
-Node *multiply(Node *optr, Node *args[], int count, Env *env) {
-    if (count < 2) abort();
-    Int *opnd = (Int *)eval(args[0], env);
-    if (!opnd) return NULL;
-    if (opnd->type != &int_type) {
-        node_unref(opnd);
+Node *multiply(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    if (!args->dec->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    Int *ret = int_check(node);
+    if (!ret) {
+        node_unref(node);
         return NULL;
     }
-    Int *ret = int_new(opnd->ll);
-    node_unref(opnd);
-    for (int i = 1; i < count; i++) {
-        opnd = (Int *)eval(args[i], env);
-        if (opnd->type != &int_type) abort();
-        ret->ll *= opnd->ll;
-        node_unref(opnd);
+    args = args->dec;
+    for (; args->addr; args = args->dec) {
+        node = eval(args->addr, env);
+        Int *int_node = int_check(node);
+        if (!int_node) {
+            node_unref(node);
+            node_unref(ret);
+            return NULL;
+        }
+        ret->ll *= int_node->ll;
+        node_unref(int_node);
     }
     return ret;
 }
 
-Node *assign(Node *proc, Node *args[], int count, Env *env) {
-    if (count != 2) return NULL;
-    Var *var = var_check(args[0]);
+Node *assign(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    Symbol *var = symbol_check(args->addr);
     if (!var) return NULL;
-    char const *key = var_get_name(var);
-    Node *value = eval(args[1], env);
+    args = args->dec;
+    if (!args->addr) return NULL;
+    Node *value = eval(args->addr, env);
     if (!value) return NULL;
+    char const *key = symbol_str(var);
     // steals ref to value, copies key
     env_set(env, key, value);
     node_ref(void_node);
@@ -36,178 +44,226 @@ Node *assign(Node *proc, Node *args[], int count, Env *env) {
 
 typedef struct {
     Node;
-    Node *expr;
+    Node *body;
     Env *env;
-    int parmc;
-    Var *parms[0]; 
+    Pair *vars;
 } Closure;
 
 void closure_dealloc(Node *node) {
-    Closure *c = (Closure *)c;
-    node_unref(c->expr);
+    Closure *c = (Closure *)node;
+    node_unref(c->body);
     node_unref(c->env);
-    for (int i = 0; i < c->parmc; i++) {
-        node_unref((Node *)c->parms[i]);
-    }
+    node_unref(c->vars);
 }
 
-void closure_print(Node const *_n, Printer *p) {
+void closure_print(Node *_n, Printer *p) {
     Closure *n = (Closure *)_n;
     fprintf(stderr, "<closure ");
-    node_print(n->expr, p);
+    node_print(n->body, p);
     fputc('>', stderr);
 }
 
-static Node *closure_call(Node *_optr, Node *args[], int argc, Env *env) {
-    Closure *optr = (Closure *)_optr;
-    if (optr->parmc != argc) return NULL;
-    Env *call_env = env_new(optr->env);
-    for (int i = 0; i < argc; i++) {
-        Node *v = eval(args[i], env);
-        if (!v) {
-            node_unref(call_env);
+static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
+    Closure *proc = (Closure *)_proc;
+    Env *sub_env = env_new(proc->env);
+    Pair *vars = proc->vars;
+    for (;; args = args->dec, vars = vars->dec) {
+        if (!args->addr) {
+            if (vars->addr) return NULL;
+            else break;
+        } else if (!vars->addr) return NULL;
+        Symbol *var = symbol_check(vars->addr);
+        if (!var) {
+            node_unref(sub_env);
             return NULL;
         }
-        env_set(call_env, var_get_name(optr->parms[i]), v);
+        Node *val = eval(args->addr, env);
+        if (!val) {
+            node_unref(sub_env);
+            return NULL;
+        }
+        env_set(sub_env, symbol_str(var), val);
     }
-    Node *ret = eval(optr->expr, call_env);
-    node_unref(call_env);
+    Node *ret = eval(proc->body, sub_env);
+    node_unref(sub_env);
     return ret;
 }
 
 Type const closure_type = {
     .name = "closure",
-    .call = closure_call,
+    .apply = closure_apply,
     .print = closure_print,
     .dealloc = closure_dealloc,
 };
 
-Node *lambda(Node *proc, Node *args[], int count, Env *env) {
-    for (int i = 0; i < count - 1; i++) {
-        if (!var_check(args[i])) return NULL;
-    }
-    Closure *ret = malloc(sizeof *ret + (count - 1) * sizeof *ret->parms);
+Node *lambda(Pair *args, Env *env) {
+    Pair *vars = pair_check(args->addr);
+    if (!vars) return NULL;
+    Node *body = args->dec->addr;
+    Closure *ret = malloc(sizeof *ret);
     node_init(ret, &closure_type);
-    ret->env = env;
     node_ref(env);
-    ret->parmc = count - 1;
-    for (int i = 0; i < count - 1; i++) {
-        ret->parms[i] = (Var *)args[i];
-        node_ref(args[i]);
-    }
-    ret->expr = args[count - 1];
-    node_ref(ret->expr);
+    ret->env = env;
+    node_ref(vars);
+    ret->vars = vars;
+    node_ref(body);
+    ret->body = body;
     return ret;
 }
 
-Node *if_form(Node *proc, Node *args[], int count, Env *env) {
-    if (count != 3) {
-        fprintf(stderr, "expected 3 arguments\n");
-        return NULL;
-    }
-    Node *test = eval(args[0], env);
+Node *apply_if(Pair *args, Env *env) {
+    Node *test = args->addr;
     if (!test) return NULL;
-    int truth = node_truth(test);
-    node_unref(test);
+    args = args->dec;
+    Node *conseq = args->addr;
+    if (!conseq) return NULL;
+    args = args->dec;
+    Node *alt = args->addr;
+    if (!alt) return NULL;
+    args = args->dec;
+    if (args->addr) return NULL;
+    Node *node = eval(test, env);
+    if (!node) return NULL;
+    int truth = node_truth(node);
+    node_unref(node);
     if (truth < 0) return NULL;
-    Node *ret = truth ? args[1] : args[2];
-    node_ref(ret);
-    return ret;
+    return eval(truth ? conseq : alt, env);
 }
 
-static Int *eval_to_int(Node *node, Env *env) {
-    Int *ret = (Int *)eval(node, env);
-    if (!ret) return NULL;
-    if (ret->type != &int_type) {
-        fprintf(stderr, "not an int: ");
-        node_print(ret, &(Printer){.file=stderr});
-        fputc('\n', stderr);
-        node_unref(ret);
+Node *subtract(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    Int *operand = int_check(node);
+    if (!operand) {
+        node_unref(node);
         return NULL;
     }
-    return ret;
-}
-
-Node *subtract(Node *proc, Node *argexps[], int nargs, Env *env) {
-    if (nargs == 0) {
-        fprintf(stderr, "expected one or more arguments");
-        return NULL;
-    }
-    Int *opnd = eval_to_int(argexps[0], env);
-    if (!opnd) return NULL;
-    if (nargs == 1) {
-        Int *ret = int_new(-opnd->ll);
-        node_unref(opnd);
+    args = args->dec;
+    Int *ret;
+    if (!args->addr) {
+        ret = int_new(-operand->ll);
+        node_unref(operand);
         return ret;
     }
-    Int *ret = int_new(opnd->ll);
-    node_unref(opnd);
-    for (int i = 1; i < nargs; i++) {
-        opnd = eval_to_int(argexps[i], env);
-        if (!opnd) {
+    ret = int_new(operand->ll);
+    node_unref(operand);
+    for (; args->addr; args = args->dec) {
+        node = eval(args->addr, env);
+        if (!node) {
             node_unref(ret);
             return NULL;
         }
-        ret->ll -= opnd->ll;
-        node_unref(opnd);
+        operand = int_check(node);
+        if (!operand) {
+            node_unref(ret);
+            node_unref(operand);
+            return NULL;
+        }
+        ret->ll -= operand->ll;
+        node_unref(operand);
     }
     return ret;
 }
 
-Node *less_than(Node *proc, Node *args[], int count, Env *env) {
-    if (count != 2) return NULL;
-    Node *ret = NULL;
-    Int *opnds[count];
-    memset(opnds, 0, sizeof opnds);
-    for (int i = 0; i < count; i++) {
-        opnds[i] = (Int *)eval(args[i], env);
-        if (!opnds[i]) goto done;
-        if (opnds[i]->type != &int_type) goto done;
+typedef enum {
+    NODE_CMP_ERR,
+    NODE_CMP_LT,
+    NODE_CMP_GT,
+    NODE_CMP_EQ,
+} NodeCmp;
+
+static NodeCmp node_compare(Node *_left, Node *_right) {
+    Int *left = int_check(_left);
+    Int *right = int_check(_right);
+    if (!left || !right) return NODE_CMP_ERR;
+    if (left->ll < right->ll) return NODE_CMP_LT;
+    if (left->ll > right->ll) return NODE_CMP_GT;
+    else return NODE_CMP_EQ;
+}
+
+Node *less_than(Pair *args, Env *env) {
+    Node *left = args->addr;
+    if (!left) return NULL;
+    args = args->dec;
+    Node *right = args->addr;
+    if (!right) return NULL;
+    args = args->dec;
+    if (args->addr) return NULL;
+    left = eval(left, env);
+    if (!left) return NULL;
+    right = eval(right, env);
+    if (!right) {
+        node_unref(left);
+        return NULL;
     }
-    ret = (opnds[0]->ll < opnds[1]->ll) ? true_node : false_node;
+    Node *ret;
+    switch (node_compare(left, right)) {
+    case NODE_CMP_ERR:
+        ret = NULL;
+        break;
+    case NODE_CMP_LT:
+        ret = true_node;
+        break;
+    case NODE_CMP_EQ:
+    case NODE_CMP_GT:
+        ret = false_node;
+        break;
+    default:
+        abort();
+    }
+    if (ret) node_ref(ret);
+    node_unref(left);
+    node_unref(right);
+    return ret;
+}
+
+Node *is_pair(Pair *args, Env *env) {
+    if (!args->addr || args->dec->addr) return NULL;
+    Node *ret = pair_check(args->addr) ? true_node : false_node;
     node_ref(ret);
-done:
-    for (int i = 0; i < count; i++) node_unref(opnds[i]);
     return ret;
 }
 
 typedef struct {
     Node;
-    CallFunc call;
-} Special;
+    Node *(*apply)(Pair *args, Env *env);
+} Primitive;
 
-extern Type const special_type;
+static Type const primitive_type;
 
-Node *special_call(Node *_func, Node *args[], int count, Env *env) {
-    assert(_func->type == &special_type);
-    Special *func = (Special *)_func;
-    return func->call(func, args, count, env);
+typedef Node *(*PrimitiveApplyFunc)(Pair *, Env *);
+
+static Node *primitive_apply(Node *_proc, Pair *args, Env *env) {
+    Primitive *proc = (Primitive *)_proc;
+    return proc->apply(args, env);
 }
 
-static void special_print(Node const *_n, Printer *p) {
+static void primitive_print(Node *_n, Printer *p) {
     fprintf(p->file, "<%p>", _n);
 }
 
-Type const special_type = {
-    .name = "special",
-    .call = special_call,
-    .print = special_print,
+static Type const primitive_type = {
+    .name = "primitive",
+    .apply = primitive_apply,
+    .print = primitive_print,
 };
 
-Special *special_new(CallFunc call) {
-    Special *ret = malloc(sizeof *ret);
-    node_init(ret, &special_type);
-    ret->call = call;
+static Primitive *primitive_new(PrimitiveApplyFunc func) {
+    Primitive *ret = malloc(sizeof *ret);
+    node_init(ret, &primitive_type);
+    ret->apply = func;
     return ret;
 }
 
 Env *top_env_new() {
     Env *ret = env_new(NULL);
-    env_set(ret, "*", special_new(multiply));
-    env_set(ret, "=", special_new(assign));
-    env_set(ret, "^", special_new(lambda));
-    env_set(ret, "?", special_new(if_form));
-    env_set(ret, "<", special_new(less_than));
-    env_set(ret, "-", special_new(subtract));
+    env_set(ret, "*", primitive_new(multiply));
+    env_set(ret, "=", primitive_new(assign));
+    env_set(ret, "^", primitive_new(lambda));
+    env_set(ret, "if", primitive_new(apply_if));
+    env_set(ret, "<", primitive_new(less_than));
+    env_set(ret, "-", primitive_new(subtract));
+    env_set(ret, "pair?", primitive_new(is_pair));
     return ret;
 }

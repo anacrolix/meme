@@ -3,16 +3,27 @@
 #include <ctype.h>
 #include <string.h>
 
-Node *parse_list(Lexer *lexer) {
+Pair *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
-    List *ret = list_new();
+    next_token(lexer);
+    if (t->type == END) {
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Pair *ret = pair_new();
+    Pair *last = ret;
     for (;;) {
-        next_token(lexer);
-        if (t->type == END) break;
         Node *node = parse(lexer);
         if (!node) abort();
-        ret = list_append(ret, node);
+        last->addr = node;
+        next_token(lexer);
+        if (t->type == END) break;
+        Pair *next = pair_new();
+        last->dec = next;
+        last = next;
     }
+    last->dec = nil_node;
+    node_ref(nil_node);
     return ret;
 }
 
@@ -31,7 +42,7 @@ Node *parse_atom(Lexer *lexer) {
         node_ref(false_node);
         ret = false_node;
     } else {
-        ret = (Node *)var_new(t->value);
+        ret = (Node *)symbol_new(t->value);
     }
     return ret;
 }

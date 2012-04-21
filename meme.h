@@ -3,11 +3,11 @@
 #include "eval.h"
 #include "int.h"
 #include "lexer.h"
-#include "list.h"
 #include "misc.h"
 #include "node.h"
+#include "pair.h"
 #include "parse.h"
 #include "topenv.h"
-#include "var.h"
+#include "symbol.h"
 #include "void.h"
 

@@ -4,7 +4,7 @@
 
 typedef struct Env {
     Node;
-    void *table;
+    void *table; // stores the frame's variables
     Env *outer;
 } Env;
 

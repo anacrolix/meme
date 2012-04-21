@@ -2,7 +2,7 @@
 #include "meme.h"
 #include <assert.h>
 
-void node_print(Node const *n, Printer *p) {
+void node_print(Node *n, Printer *p) {
     assert(n->refs > 0);
     n->type->print(n, p);
 }
@@ -12,10 +12,6 @@ void node_init(Node *n, Type const *t) {
         .refs = 1,
         .type = t,
     };
-}
-
-Node *call_node(Node *node, Node *args[], int nargs, Env *env) {
-    return node->type->call(node, args, nargs, env);
 }
 
 void node_ref(Node *n) {
@@ -33,12 +29,15 @@ void node_unref(Node *n) {
     free(n);
 }
 
-int node_truth(Node const *n) {
-    if (!n->type->truth) return 1;
-    return n->type->truth(n);
+int node_truth(Node *node) {
+    if (!node->type->truth) return 1;
+    return node->type->truth(node);
 }
 
 Node *node_eval(Node *node, Env *env) {
     return node->type->eval(node, env);
 }
 
+Node *node_apply(Node *proc, Pair *args, Env *env) {
+    return proc->type->apply(proc, args, env);
+}
