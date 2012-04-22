@@ -1,0 +1,6 @@
+(= lambda ^)
+(= if ?)
+(= define (# (names value)
+             (if (pair? names)
+                 (list '= (car names) (list '^ (cdr names) value))
+                 (list '= names value))))

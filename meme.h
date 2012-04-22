@@ -7,6 +7,7 @@
 #include "node.h"
 #include "pair.h"
 #include "parse.h"
+#include "quote.h"
 #include "topenv.h"
 #include "symbol.h"
 #include "void.h"

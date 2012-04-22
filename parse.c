@@ -47,12 +47,24 @@ Node *parse_atom(Lexer *lexer) {
     return ret;
 }
 
+static Node *parse_quote(Lexer *lexer) {
+    next_token(lexer);
+    Node *quoted = parse(lexer);
+    if (!quoted) return NULL;
+    Quote *ret = malloc(sizeof *ret);
+    node_init(ret, &quote_type);
+    ret->quoted = quoted;
+    return ret;
+}
+
 Node *parse(Lexer *lexer) {
     switch (lexer->token->type) {
     case ATOM:
         return parse_atom(lexer);
     case START:
         return parse_list(lexer);
+    case QUOTE:
+        return parse_quote(lexer);
     default:
         abort();
     }

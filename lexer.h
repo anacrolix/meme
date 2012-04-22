@@ -7,6 +7,7 @@ typedef enum {
     START,
     END,
     TT_EOF,
+    QUOTE,
 } TokenType;
 
 typedef struct {

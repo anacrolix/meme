@@ -72,6 +72,9 @@ bool next_token(Lexer *lexer) {
     case ')':
         init_token(lexer, END);
         break;
+    case '\'':
+        init_token(lexer, QUOTE);
+        break;
     default:
         if (c != ungetc(c, lexer->file)) abort();
         init_token(lexer, ATOM);

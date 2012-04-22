@@ -219,9 +219,152 @@ Node *less_than(Pair *args, Env *env) {
 }
 
 Node *is_pair(Pair *args, Env *env) {
-    if (!args->addr || args->dec->addr) return NULL;
-    Node *ret = pair_check(args->addr) ? true_node : false_node;
+    // only take one arg
+    if (args->dec->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    Node *ret = pair_check(node) ? true_node : false_node;
     node_ref(ret);
+    node_unref(node);
+    return ret;
+}
+
+void quote_print(Node *_quote, Printer *p) {
+    assert(_quote->type == &quote_type);
+    Quote *quote = (Quote *)_quote;
+    fputc('\'', p->file);
+    p->just_atom = false;
+    node_print(quote->quoted, p);
+}
+
+Node *quote_eval(Node *_quote, Env *env) {
+    Quote *quote = (Quote *)_quote;
+    Node *ret = quote->quoted;
+    node_ref(ret);
+    return ret;
+}
+
+Type const quote_type = {
+    .name = "quote",
+    .print = quote_print,
+    .eval = quote_eval,
+};
+
+typedef struct Macro {
+    Node;
+    Pair *vars;
+    Node *text;
+} Macro;
+
+extern Type const macro_type;
+
+static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
+    assert(_macro->type == &macro_type);
+    Macro *macro = (Macro *)_macro;
+    Env *sub_env = env_new(env);
+    Pair *vars = macro->vars;
+    for (;; args = args->dec, vars = vars->dec) {
+        if (!args->addr) {
+            if (vars->addr) {
+                node_unref(sub_env);
+                return NULL;
+            }
+            else break;
+        } else if (!vars->addr) {
+            node_unref(sub_env);
+            return NULL;
+        }
+        Symbol *var = symbol_check(vars->addr);
+        if (!var) {
+            node_unref(sub_env);
+            return NULL;
+        }
+        node_ref(args->addr);
+        env_set(sub_env, symbol_str(var), args->addr);
+    }
+    Node *code = eval(macro->text, sub_env);
+    node_unref(sub_env);
+    if (!code) return NULL;
+    Node *ret = eval(code, env);
+    node_unref(code);
+    return ret;
+}
+
+static Pair *eval_list(Pair *args, Env *env) {
+    if (!args->addr) {
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Node *addr = eval(args->addr, env);
+    if (!addr) return NULL;
+    Pair *dec = eval_list(args->dec, env);
+    if (!dec) {
+        node_unref(addr);
+        return NULL;
+    }
+    Pair *ret = pair_new();
+    ret->addr = addr;
+    ret->dec = dec;
+    return ret;
+}
+
+static Node *apply_list(Pair *args, Env *env) {
+    if (!args->addr) {
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Node *addr = eval(args->addr, env);
+    if (!addr) return NULL;
+    Pair *ret = pair_new();
+    ret->addr = addr;
+    Pair *last = ret;
+    args = args->dec;
+    for (; args->addr; args = args->dec) {
+        addr = eval(args->addr, env);
+        if (!addr) {
+            last->dec = nil_node;
+            node_ref(nil_node);
+            node_unref(ret);
+            return NULL;
+        }
+        Pair *pair = pair_new();
+        last->dec = pair;
+        pair->addr = addr;
+        last = pair;
+    }
+    last->dec = nil_node;
+    node_ref(nil_node);
+    return ret;
+}
+
+static void macro_print(Node *_macro, Printer *p) {
+    assert(_macro->type == &macro_type);
+    Macro *macro = (Macro *)_macro;
+    fprintf(p->file, "(#macro ");
+    p->just_atom = false;
+    node_print(macro->text, p);
+    fputc(')', p->file);
+    p->just_atom = false;
+}
+
+Type const macro_type = {
+    .name = "macro",
+    .apply = macro_apply,
+    .print = macro_print,
+};
+
+Node *macro(Pair *args, Env *env) {
+    Pair *vars = pair_check(args->addr);
+    if (!vars) return NULL;
+    args = args->dec;
+    Node *text = args->addr;
+    if (!text) return NULL;
+    Macro *ret = malloc(sizeof *ret);
+    node_init(ret, &macro_type);
+    node_ref(text);
+    ret->text = text;
+    node_ref(vars);
+    ret->vars = vars;
     return ret;
 }
 
@@ -256,14 +399,54 @@ static Primitive *primitive_new(PrimitiveApplyFunc func) {
     return ret;
 }
 
+static Node *apply_car(Pair *args, Env *env) {
+    // 0 args
+    if (!args->addr) return NULL;
+    // more than 1 arg
+    if (args->dec->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    // argument is not a pair
+    Pair *pair = pair_check(node);
+    if (!pair) {
+        node_unref(node);
+        return NULL;
+    }
+    Node *ret = pair->addr;
+    // this would make the pair the nil type, which has no car
+    if (ret) node_ref(ret);
+    node_unref(node);
+    return ret;
+}
+
+static Node *apply_cdr(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    if (args->dec->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    if (node->type != &pair_type) {
+        node_unref(node);
+        return NULL;
+    }
+    Pair *pair = (Pair *)node;
+    Pair *ret = pair->dec;
+    node_ref(ret);
+    node_unref(pair);
+    return ret;
+}
+
 Env *top_env_new() {
     Env *ret = env_new(NULL);
     env_set(ret, "*", primitive_new(multiply));
     env_set(ret, "=", primitive_new(assign));
     env_set(ret, "^", primitive_new(lambda));
-    env_set(ret, "if", primitive_new(apply_if));
+    env_set(ret, "?", primitive_new(apply_if));
     env_set(ret, "<", primitive_new(less_than));
     env_set(ret, "-", primitive_new(subtract));
     env_set(ret, "pair?", primitive_new(is_pair));
+    env_set(ret, "#", primitive_new(macro));
+    env_set(ret, "list", primitive_new(apply_list));
+    env_set(ret, "car", primitive_new(apply_car));
+    env_set(ret, "cdr", primitive_new(apply_cdr));
     return ret;
 }
