@@ -4,3 +4,5 @@
              (if (pair? names)
                  (list '= (car names) (list '^ (cdr names) value))
                  (list '= names value))))
+(define (> a b) (< b a))
+
