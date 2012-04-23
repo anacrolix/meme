@@ -8,12 +8,13 @@
 #include "pair.h"
 #include "parse.h"
 #include "quote.h"
-#include "topenv.h"
 #include "symbol.h"
 #include "void.h"
 #include <glib.h>
 #include <stdlib.h>
 
+typedef struct Env Env;
+Env *top_env_new();
 extern GHashTable *all_nodes;
 void meme_init();
 void meme_final();
