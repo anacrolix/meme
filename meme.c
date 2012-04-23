@@ -4,29 +4,29 @@
 
 GHashTable *all_nodes;
 
-Node *multiply(Pair *args, Env *env) {
+static Int *eval_to_int(Node *node, Env *env) {
+    Node *castee = eval(node, env);
+    if (!castee) return NULL;
+    Int *ret = int_check(castee);
+    if (!ret) node_unref(castee);
+    return ret;
+}
+
+static Node *apply_splat(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     if (!args->dec->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
-    Int *ret = int_check(node);
-    if (!ret) {
-        node_unref(node);
-        return NULL;
+    Int *opnd = eval_to_int(args->addr, env);
+    if (!opnd) return NULL;
+    long long ll = opnd->ll;
+    for (;;) {
+        node_unref(opnd);
+        args = args->dec;
+        if (!args->addr) break;
+        opnd = eval_to_int(args->addr, env);
+        if (!opnd) return NULL;
+        ll *= opnd->ll;
     }
-    args = args->dec;
-    for (; args->addr; args = args->dec) {
-        node = eval(args->addr, env);
-        Int *int_node = int_check(node);
-        if (!int_node) {
-            node_unref(node);
-            node_unref(ret);
-            return NULL;
-        }
-        ret->ll *= int_node->ll;
-        node_unref(int_node);
-    }
-    return ret;
+    return int_new(ll);
 }
 
 Node *assign(Pair *args, Env *env) {
@@ -425,9 +425,33 @@ static Node *apply_cdr(Pair *args, Env *env) {
     return ret;
 }
 
+static Node *apply_symbol_query(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    Node *operand = eval(args->addr, env);
+    if (!operand) return NULL;
+    Node *ret = symbol_check(args->addr) ? true_node : false_node;
+    node_unref(operand);
+    node_ref(ret);
+    return ret;
+}
+
+static Node *apply_plus(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    long long ll = 0;
+    for (; args->addr; args = args->dec) {
+        Int *opnd = eval_to_int(args->addr, env);
+        if (!opnd) return NULL;
+        ll += opnd->ll;
+        node_unref(opnd);
+    }
+    return int_new(ll);
+}
+
 Env *top_env_new() {
     Env *ret = env_new(NULL);
-    env_set(ret, "*", primitive_new(multiply));
+    env_set(ret, "*", primitive_new(apply_splat));
+    env_set(ret, "+", primitive_new(apply_plus));
+    env_set(ret, "symbol?", primitive_new(apply_symbol_query));
     env_set(ret, "=", primitive_new(assign));
     env_set(ret, "^", primitive_new(lambda));
     env_set(ret, "?", primitive_new(apply_if));
@@ -559,7 +583,7 @@ void collect_cycles() {
     GHashTable *reachable = get_reachable(roots);
     GHashTable *unreachable = node_set_difference(all_nodes, reachable);
     //fprintf(stderr, "*** UNREACHABLE ***\n");
-    print_node_set(unreachable);
+    //print_node_set(unreachable);
     //fprintf(stderr, "*** /UNREACHABLE ***\n");
     g_hash_table_destroy(reachable);
     g_slist_free(roots);
