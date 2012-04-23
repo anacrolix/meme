@@ -14,6 +14,7 @@ char *read_atom(Lexer *lexer) {
         case '\t':
         case '(':
         case ')':
+        case '\r':
         case '\n':
             if (c != ungetc(c, lexer->file)) abort();
             goto end_loop;
