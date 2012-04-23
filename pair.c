@@ -19,7 +19,7 @@ static void pair_print(Node *node, Printer *p) {
 
 static Node *pair_eval(Node *node, Env *env) {
     Pair *pair = pair_check(node);
-    Node *proc = node_eval(pair->addr, env);
+    Node *proc = eval(pair->addr, env);
     if (!proc) return NULL;
     Node *ret = node_apply(proc, pair->dec, env);
     node_unref(proc);
