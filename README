@@ -8,10 +8,26 @@ meme is a minimal scheme. It's implemented in C, has GC, and should express reas
 
 # Special forms
 
+ (= a b)
+    Evaluate `b` and store it in the current frame under the symbol `a`.
  (^ args... body)
     Captures the environment when invoked. Parameters are bound to the name of each `arg` in the evaluation of the `body` if called.
  (- a b...)
     The integers of `b` are each subtracted from the value of `a`.
+ (< a b)
+    `a` is numerically less than `b`.
+ (? a b c)
+    If `a` is not false, evaluate `b` else `c`.
+ (# (a...) b)
+    Returns a callable. Invoking it binds the arguments to each successive symbol in `a`. `b` is evaluated, and the returned expression is *again* evaluated, but this time in the macro callers environment.
+ (* a...)
+    Return the numerical product of all integers in `a`.
+ (- a b...)
+    If b is null, return `-a`
+
+# Running under valgrind
+
+Make sure to set G_SLICE=always-malloc, and possibly G_DEBUG=gc-friendly in the environment. See http://stackoverflow.com/questions/4254610/valgrind-reports-memory-possibly-lost-when-using-glib-data-types.
 
 # TODO
 

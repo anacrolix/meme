@@ -22,12 +22,15 @@ static Node *run_file(FILE *file, Env *env) {
             node_print(result, &(Printer){.file=stdout});
             putchar('\n');
         }
+        // this is here to stress test the cycle collector
+        collect_cycles();
     }
     free(lexer.token->value);
     return result;
 }
 
 int main(int argc, char **argv) {
+    meme_init();
     Node *result = NULL;
     Env *env = top_env_new();
     if (argc == 1) {
@@ -47,10 +50,12 @@ int main(int argc, char **argv) {
             if (!result) break;
         }
     }
+    collect_cycles();
     node_unref(env);
-    if (result) {
-        node_unref(result);
-        return 0;
-    }
-    return 1;
+    int ret = !result;
+    collect_cycles();
+    if (result) node_unref(result);
+    meme_final();
+    return ret;
 }
+

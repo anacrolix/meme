@@ -33,12 +33,40 @@ Env *env_check(Node *node) {
 static void env_dealloc(Node *node) {
     Env *env = env_check(node);
     g_hash_table_destroy(env->table);
-    if (env->outer) node_unref(env->outer);
+}
+
+static void env_traverse(Node *_env, VisitProc visit, void *arg) {
+    Env *env = (Env *)_env;
+    GHashTableIter iter;
+    gpointer _node;
+    g_hash_table_iter_init(&iter, env->table);
+    while (g_hash_table_iter_next(&iter, NULL, &_node)) {
+        Node *node = _node;
+        visit(node, arg);
+    }
+    if (env->outer) visit(env->outer, arg);
+}
+
+static void env_print(Node *_env, Printer *p) {
+    Env *env = (Env *)_env;
+    fprintf(p->file, "; env {\n");
+    GHashTableIter iter;
+    gpointer _key, _node;
+    g_hash_table_iter_init(&iter, env->table);
+    while (g_hash_table_iter_next(&iter, &_key, &_node)) {
+        char const *key = _key;
+        fprintf(p->file, ";   %s ", key);
+        node_print(_node, p);
+        fputc('\n', p->file);
+    }
+    fprintf(p->file, "; }\n");
 }
 
 static Type env_type = {
     .name = "env",
     .dealloc = env_dealloc,
+    .traverse = env_traverse,
+    .print = env_print,
 };
 
 Env *env_new(Env *outer) {
@@ -47,7 +75,7 @@ Env *env_new(Env *outer) {
     ret->table = g_hash_table_new_full(g_str_hash,
                                        g_str_equal,
                                        free,
-                                       (GDestroyNotify)node_unref),
+                                       NULL),
     ret->outer = outer;
     if (outer) node_ref(outer);
     return ret;

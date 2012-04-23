@@ -49,11 +49,11 @@ typedef struct {
     Pair *vars;
 } Closure;
 
-void closure_dealloc(Node *node) {
-    Closure *c = (Closure *)node;
-    node_unref(c->body);
-    node_unref(c->env);
-    node_unref(c->vars);
+static void closure_traverse(Node *_c, VisitProc visit, void *arg) {
+    Closure *c = (Closure *)_c;
+    visit(c->body, arg);
+    visit(c->env, arg);
+    visit(c->vars, arg);
 }
 
 void closure_print(Node *_n, Printer *p) {
@@ -93,7 +93,7 @@ Type const closure_type = {
     .name = "closure",
     .apply = closure_apply,
     .print = closure_print,
-    .dealloc = closure_dealloc,
+    .traverse = closure_traverse,
 };
 
 Node *lambda(Pair *args, Env *env) {
@@ -244,10 +244,16 @@ Node *quote_eval(Node *_quote, Env *env) {
     return ret;
 }
 
+static void quote_traverse(Node *_q, VisitProc visit, void *arg) {
+    Quote *q = (Quote *)_q;
+    visit(q->quoted, arg);
+}
+
 Type const quote_type = {
     .name = "quote",
     .print = quote_print,
     .eval = quote_eval,
+    .traverse = quote_traverse,
 };
 
 typedef struct Macro {
@@ -257,6 +263,12 @@ typedef struct Macro {
 } Macro;
 
 extern Type const macro_type;
+
+static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
+    Macro *macro = (Macro *)_macro;
+    visit(macro->vars, arg);
+    visit(macro->text, arg);
+}
 
 static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
     assert(_macro->type == &macro_type);
@@ -309,32 +321,7 @@ static Pair *eval_list(Pair *args, Env *env) {
 }
 
 static Node *apply_list(Pair *args, Env *env) {
-    if (!args->addr) {
-        node_ref(nil_node);
-        return nil_node;
-    }
-    Node *addr = eval(args->addr, env);
-    if (!addr) return NULL;
-    Pair *ret = pair_new();
-    ret->addr = addr;
-    Pair *last = ret;
-    args = args->dec;
-    for (; args->addr; args = args->dec) {
-        addr = eval(args->addr, env);
-        if (!addr) {
-            last->dec = nil_node;
-            node_ref(nil_node);
-            node_unref(ret);
-            return NULL;
-        }
-        Pair *pair = pair_new();
-        last->dec = pair;
-        pair->addr = addr;
-        last = pair;
-    }
-    last->dec = nil_node;
-    node_ref(nil_node);
-    return ret;
+    return eval_list(args, env);
 }
 
 static void macro_print(Node *_macro, Printer *p) {
@@ -351,6 +338,7 @@ Type const macro_type = {
     .name = "macro",
     .apply = macro_apply,
     .print = macro_print,
+    .traverse = macro_traverse,
 };
 
 Node *macro(Pair *args, Env *env) {

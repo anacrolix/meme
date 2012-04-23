@@ -26,17 +26,18 @@ static Node *pair_eval(Node *node, Env *env) {
     return ret;
 }
 
-static void pair_dealloc(Node *node) {
-    Pair *pair = pair_check(node);
-    node_unref(pair->addr);
-    node_unref(pair->dec);
+static void pair_traverse(Node *_pair, VisitProc visit, void *data) {
+    Pair *pair = (Pair *)_pair;
+    if (pair == nil_node) return;
+    visit(pair->addr, data);
+    visit(pair->dec, data);
 }
 
 Type const pair_type = {
     .name = "pair",
-    .dealloc = pair_dealloc,
     .print = pair_print,
     .eval = pair_eval,
+    .traverse = pair_traverse,
 };
 
 static Pair nil_node_storage = {

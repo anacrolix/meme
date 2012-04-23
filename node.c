@@ -12,6 +12,8 @@ void node_init(Node *n, Type const *t) {
         .refs = 1,
         .type = t,
     };
+    assert(!g_hash_table_contains(all_nodes, n));
+    g_hash_table_add(all_nodes, n);
 }
 
 void node_ref(Node *n) {
@@ -19,14 +21,22 @@ void node_ref(Node *n) {
     n->refs++;
 }
 
+static void node_free_visit(Node *node, void *data) {
+    node_unref(node);
+}
+
 void node_unref(Node *n) {
-    assert(n->refs > 0);
     if (n->refs > 1) {
         n->refs--;
         return;
-    }
-    if (n->type->dealloc) n->type->dealloc(n);
-    free(n);
+    } else if (n->refs == 1) {
+        if (n->type->traverse) {
+            n->type->traverse(n, node_free_visit, NULL);
+        }
+        if (n->type->dealloc) n->type->dealloc(n);
+        if (!g_hash_table_remove(all_nodes, n)) abort();
+        free(n);
+    } else abort();
 }
 
 int node_truth(Node *node) {

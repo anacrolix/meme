@@ -11,4 +11,11 @@
 #include "topenv.h"
 #include "symbol.h"
 #include "void.h"
+#include <glib.h>
+#include <stdlib.h>
+
+extern GHashTable *all_nodes;
+void meme_init();
+void meme_final();
+void collect_cycles();
 

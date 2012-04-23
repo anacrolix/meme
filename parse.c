@@ -5,25 +5,21 @@
 
 Pair *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
-    next_token(lexer);
+    if (!next_token(lexer)) return NULL;
     if (t->type == END) {
         node_ref(nil_node);
         return nil_node;
     }
-    Pair *ret = pair_new();
-    Pair *last = ret;
-    for (;;) {
-        Node *node = parse(lexer);
-        if (!node) abort();
-        last->addr = node;
-        next_token(lexer);
-        if (t->type == END) break;
-        Pair *next = pair_new();
-        last->dec = next;
-        last = next;
+    Node *addr = parse(lexer);
+    if (!addr) return NULL;
+    Pair *dec = parse_list(lexer);
+    if (!dec) {
+        node_unref(addr);
+        return NULL;
     }
-    last->dec = nil_node;
-    node_ref(nil_node);
+    Pair *ret = pair_new();
+    ret->addr = addr;
+    ret->dec = dec;
     return ret;
 }
 
