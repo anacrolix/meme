@@ -62,7 +62,8 @@ Node *parse(Lexer *lexer) {
     case QUOTE:
         return parse_quote(lexer);
     default:
-        abort();
+        fprintf(stderr, "syntax error at line %d col %d\n", lexer->token->line, lexer->token->col);
+        return NULL;
     }
 }
 
