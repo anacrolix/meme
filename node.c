@@ -26,17 +26,14 @@ static void node_free_visit(Node *node, void *data) {
 }
 
 void node_unref(Node *n) {
-    if (n->refs > 1) {
-        n->refs--;
-        return;
-    } else if (n->refs == 1) {
-        if (n->type->traverse) {
-            n->type->traverse(n, node_free_visit, NULL);
-        }
-        if (n->type->dealloc) n->type->dealloc(n);
-        if (!g_hash_table_remove(all_nodes, n)) abort();
-        free(n);
-    } else abort();
+    assert(n->refs > 0);
+    if (--n->refs > 0) return;
+    if (n->type->traverse) {
+        n->type->traverse(n, node_free_visit, NULL);
+    }
+    if (n->type->dealloc) n->type->dealloc(n);
+    if (!g_hash_table_remove(all_nodes, n)) assert(false);
+    free(n);
 }
 
 int node_truth(Node *node) {
