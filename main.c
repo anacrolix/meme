@@ -14,16 +14,18 @@ static Node *run_file(FILE *file, Env *env) {
     for (;;) {
         if (!next_token(&lexer)) break;
         if (result) node_unref(result);
+        result = NULL;
         Node *node = parse(&lexer);
+        if (!node) break;
         result = eval(node, env);
         node_unref(node);
-        if (!result) break;
-        if (!void_check(result)) {
+        // this is here to stress test the cycle collector
+        collect_cycles();
+        if (!result && !isatty(fileno(file))) break;
+        if (result && !void_check(result)) {
             node_print(result, &(Printer){.file=stdout});
             putchar('\n');
         }
-        // this is here to stress test the cycle collector
-        collect_cycles();
     }
     free(lexer.token->value);
     return result;
