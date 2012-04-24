@@ -28,6 +28,16 @@ end_loop:
     return strdup(lval);
 }
 
+static bool discard_line(Lexer *lexer) {
+    for (;;) {
+        int c = fgetc(lexer->file);
+        if (c < 0) return false;
+        if (c != '\n') continue;
+        if (c != ungetc(c, lexer->file)) abort();
+        return true;
+    }
+}
+
 __attribute__((warn_unused_result))
 static bool discard_whitespace(Lexer *lexer) {
     for (;;) {
@@ -37,6 +47,9 @@ static bool discard_whitespace(Lexer *lexer) {
         case ' ':
         case '\t':
             lexer->col++;
+            break;
+        case ';':
+            if (!discard_line(lexer)) return false;
             break;
         case '\n':
             lexer->line++;
