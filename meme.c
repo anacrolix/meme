@@ -10,6 +10,7 @@ static bool is_null(Pair *pair) {
 }
 
 static Pair *eval_list(Pair *args, Env *env);
+static Pair *eval_args(Pair *fixed, Node *rest, Env *env);
 
 static Int *eval_to_int(Node *node, Env *env) {
     Node *castee = eval(node, env);
@@ -150,7 +151,7 @@ static bool extend_environment(Formals *formals, Pair *args, Env *env) {
 
 static Node *closure_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
     Closure *proc = (Closure *)_proc;
-    Pair *values = eval_list(args, env);
+    Pair *values = eval_args(args, vargs, env);
     if (!values) return NULL;
     Env *sub_env = env_new(proc->env);
     if (!extend_environment(proc->formals, values, sub_env)) {
@@ -497,6 +498,7 @@ static Pair *eval_args(Pair *fixed, Node *rest, Env *env) {
 static Node *primitive_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
     Primitive *proc = (Primitive *)_proc;
     Pair *flat_args = eval_args(args, vargs, env);
+    if (!flat_args) return NULL;
     Node *ret = proc->apply(flat_args, env);
     node_unref(flat_args);
     return ret;
@@ -603,16 +605,10 @@ static Node *apply_plus(Pair *args, Env *env) {
 
 static Node *apply_null_query(Pair *args, Env *env) {
     if (!args->addr || args->dec->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
-    Pair *pair = pair_check(node);
-    if (!pair) {
-        node_unref(node);
-        return NULL;
-    }
+    Pair *pair = pair_check(args->addr);
+    if (!pair) return NULL;
     Node *ret = pair->addr ? false_node : true_node;
     node_ref(ret);
-    node_unref(pair);
     return ret;
 }
 
@@ -624,19 +620,13 @@ static size_t list_length(Pair *list) {
 
 static Node *apply_cons(Pair *args, Env *env) {
     if (list_length(args) != 2) return NULL;
-    args = eval_list(args, env);
-    if (!args) return NULL;
     Pair *dec = pair_check(args->dec->addr);
-    if (!dec) {
-        node_unref(args);
-        return NULL;
-    }
+    if (!dec) return NULL;
     Pair *ret = pair_new();
     ret->addr = args->addr;
     node_ref(ret->addr);
     ret->dec = dec;
     node_ref(ret->dec);
-    node_unref(args);
     return ret;
 }
 
