@@ -18,6 +18,7 @@ typedef struct {
 
 typedef struct Lexer {
     FILE *file;
+    char const *file_name;
     int line, col;
     Token token[1];
 } Lexer;

@@ -4,11 +4,12 @@
 #include <errno.h>
 #include <unistd.h>
 
-static Node *run_file(FILE *file, Env *env) {
+static Node *run_file(FILE *file, Env *env, char const *name) {
     Lexer lexer = {
         .file = file,
         .line = 1,
         .col = 1,
+        .file_name = name,
     };
     Node *result = NULL;
     for (;;) {
@@ -36,7 +37,7 @@ int main(int argc, char **argv) {
     Node *result = NULL;
     Env *env = top_env_new();
     if (argc == 1) {
-        result = run_file(stdin, env);
+        result = run_file(stdin, env, "<stdin>");
     } else {
         for (int i = 1; i < argc; i++) {
             FILE *file = fopen(argv[i], "rb");
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
                 break;
             }
             if (result) node_unref(result);
-            result = run_file(file, env);
+            result = run_file(file, env, argv[i]);
             if (fclose(file)) abort();
             if (!result) break;
         }

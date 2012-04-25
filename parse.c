@@ -5,7 +5,11 @@
 
 Pair *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;
-    if (!next_token(lexer)) return NULL;
+    if (!next_token(lexer)) {
+        fprintf(stderr, "unterminated list (%s:%d:%d)\n", 
+                lexer->file_name, lexer->line, lexer->col);
+        return NULL;
+    }
     if (t->type == END) {
         node_ref(nil_node);
         return nil_node;
