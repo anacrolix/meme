@@ -15,7 +15,7 @@ Node *eval(Node *node, Env *env) {
         }
 #if 1
         node_print(ret, &(Printer){.file=stderr});
-        fprintf(stderr, " ==> ");
+        fprintf(stderr, " ===> ");
         if (node != void_node) {
             node_print(node, &(Printer){.file=stderr});
         }
@@ -26,3 +26,4 @@ Node *eval(Node *node, Env *env) {
     }
     return ret;
 }
+
