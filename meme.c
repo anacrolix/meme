@@ -1,8 +1,15 @@
 #include "meme.h"
 #include <glib.h>
 #include <assert.h>
+#include <string.h>
 
 GHashTable *all_nodes;
+
+static bool is_null(Pair *pair) {
+    return pair == nil_node;
+}
+
+static Pair *eval_list(Pair *args, Env *env);
 
 static Int *eval_to_int(Node *node, Env *env) {
     Node *castee = eval(node, env);
@@ -45,17 +52,78 @@ Node *assign(Pair *args, Env *env) {
 }
 
 typedef struct {
+    Pair *fixed;
+    Symbol *rest;
+} Formals;
+
+// parses formals of the kind (a b . c)
+// returns the fixed list
+// stores and refs *rest if it's included else sets it to NULL
+// does NOT handle a flat symbol
+// TODO: likely handles (. a) and (. .)
+static Pair *parse_formals(Pair *vars, Symbol **rest) {
+    if (vars == nil_node) {
+        node_ref(nil_node);
+        // the list finished without a .
+        *rest = NULL;
+        return nil_node;
+    }
+    Symbol *addr = symbol_check(vars->addr);
+    // vars must be symbols
+    if (!addr) return NULL;
+    if (!strcmp(".", symbol_str(addr))) {
+        // check the node after the . is a symbol and store it
+        *rest = symbol_check(vars->dec->addr);
+        if (!*rest) return NULL;
+        // more than one symbol after the .
+        if (vars->dec->dec != nil_node) return NULL;
+        // terminate the fixed vars
+        node_ref(*rest);
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Pair *dec = parse_formals(vars->dec, rest);
+    if (!dec) return NULL;
+    Pair *pair = pair_new();
+    pair->addr = addr;
+    node_ref(addr);
+    pair->dec = dec;
+    return pair;
+}
+
+
+static bool formals_init(Formals *f, Node *node) {
+    Pair *pair = pair_check(node); 
+    if (pair) {
+        f->fixed = parse_formals(pair, &f->rest);
+        if (!f->fixed) return false;
+    } else {
+        f->rest = symbol_check(node);
+        if (!f->rest) return false;
+        node_ref(f->rest);
+        f->fixed = nil_node;
+        node_ref(nil_node);
+    }
+    return true;
+}
+
+static void traverse_formals(Formals *f, VisitProc visit, void *arg) {
+    visit(f->fixed, arg);
+    if (f->rest) visit(f->rest, arg);
+}
+
+typedef struct {
     Node;
     Node *body;
     Env *env;
-    Pair *vars;
+    Formals formals[1];
 } Closure;
 
 static void closure_traverse(Node *_c, VisitProc visit, void *arg) {
     Closure *c = (Closure *)_c;
     visit(c->body, arg);
     visit(c->env, arg);
-    visit(c->vars, arg);
+    traverse_formals(c->formals, visit, arg);
 }
 
 void closure_print(Node *_n, Printer *p) {
@@ -65,29 +133,34 @@ void closure_print(Node *_n, Printer *p) {
     fputc('>', stderr);
 }
 
-static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
+static bool extend_environment(Formals *formals, Pair *args, Env *env) {
+    Pair *fixed = formals->fixed;
+    for (; fixed->addr; fixed = fixed->dec, args = args->dec) {
+        // not all fixed arguments were given
+        if (!args->addr) return false;
+        node_ref(args->addr);
+        env_set(env, symbol_str((Symbol *)fixed->addr), args->addr);
+    }
+    if (formals->rest) {
+        node_ref(args);
+        env_set(env, symbol_str(formals->rest), args);
+    } else if (args->addr) return false;
+    return true;
+}
+
+static Node *closure_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
     Closure *proc = (Closure *)_proc;
+    Pair *values = eval_list(args, env);
+    if (!values) return NULL;
     Env *sub_env = env_new(proc->env);
-    Pair *vars = proc->vars;
-    for (;; args = args->dec, vars = vars->dec) {
-        if (!args->addr) {
-            if (vars->addr) return NULL;
-            else break;
-        } else if (!vars->addr) return NULL;
-        Symbol *var = symbol_check(vars->addr);
-        if (!var) {
-            node_unref(sub_env);
-            return NULL;
-        }
-        Node *val = eval(args->addr, env);
-        if (!val) {
-            node_unref(sub_env);
-            return NULL;
-        }
-        env_set(sub_env, symbol_str(var), val);
+    if (!extend_environment(proc->formals, values, sub_env)) {
+        node_unref(values);
+        node_unref(sub_env);
+        return NULL;
     }
     Node *ret = eval(proc->body, sub_env);
     node_unref(sub_env);
+    node_unref(values);
     return ret;
 }
 
@@ -98,19 +171,25 @@ Type const closure_type = {
     .traverse = closure_traverse,
 };
 
-Node *lambda(Pair *args, Env *env) {
-    Pair *vars = pair_check(args->addr);
-    if (!vars) return NULL;
-    Node *body = args->dec->addr;
+static Closure *closure_new(Node *vars, Node *body, Env *env) {
+    Formals formals;
+    if (!formals_init(&formals, vars)) return NULL;
     Closure *ret = malloc(sizeof *ret);
     node_init(ret, &closure_type);
     node_ref(env);
     ret->env = env;
-    node_ref(vars);
-    ret->vars = vars;
+    *ret->formals = formals;
     node_ref(body);
     ret->body = body;
     return ret;
+}
+
+static Node *apply_lambda(Pair *args, Env *env) {
+    if (!args->addr) return NULL;
+    Node *body = args->dec->addr;
+    if (!body) return NULL;
+    if (args->dec->dec->addr) return NULL;
+    return closure_new(args->addr, body, env);
 }
 
 Node *apply_if(Pair *args, Env *env) {
@@ -120,16 +199,23 @@ Node *apply_if(Pair *args, Env *env) {
     Node *conseq = args->addr;
     if (!conseq) return NULL;
     args = args->dec;
-    Node *alt = args->addr;
-    if (!alt) return NULL;
-    args = args->dec;
-    if (args->addr) return NULL;
+    Node *alt;
+    if (is_null(args)) alt = NULL;
+    else {
+        alt = args->addr;
+        if (!is_null(args->dec)) return NULL;
+    }
     Node *node = eval(test, env);
     if (!node) return NULL;
     int truth = node_truth(node);
     node_unref(node);
     if (truth < 0) return NULL;
-    return eval(truth ? conseq : alt, env);
+    if (truth) return eval(conseq, env);
+    if (!alt) {
+        node_ref(void_node);
+        return void_node;
+    }
+    return eval(alt, env);
 }
 
 Node *subtract(Pair *args, Env *env) {
@@ -168,20 +254,30 @@ Node *subtract(Pair *args, Env *env) {
     return ret;
 }
 
-typedef enum {
-    NODE_CMP_ERR,
-    NODE_CMP_LT,
-    NODE_CMP_GT,
-    NODE_CMP_EQ,
-} NodeCmp;
+static NodeCmp invert_nodecmp(NodeCmp cmp) {
+    switch (cmp) {
+    case NODE_CMP_ERR:
+        return NODE_CMP_ERR;
+    case NODE_CMP_LT:
+        return NODE_CMP_GT;
+    case NODE_CMP_EQ:
+        return NODE_CMP_NE;
+    case NODE_CMP_GT:
+        return NODE_CMP_LT;
+    default:
+        assert(false);
+    }
+}
 
-static NodeCmp node_compare(Node *_left, Node *_right) {
-    Int *left = int_check(_left);
-    Int *right = int_check(_right);
-    if (!left || !right) return NODE_CMP_ERR;
-    if (left->ll < right->ll) return NODE_CMP_LT;
-    if (left->ll > right->ll) return NODE_CMP_GT;
-    else return NODE_CMP_EQ;
+static void node_print_file(Node *node, FILE *file) {
+    node_print(node, &(Printer){.file=file});
+}
+
+static NodeCmp node_compare(Node *left, Node *right) {
+    if (left == right) return NODE_CMP_EQ;
+    else if (left->type->compare) return left->type->compare(left, right);
+    else if (right->type->compare) return invert_nodecmp(right->type->compare(right, left));
+    else return NODE_CMP_NE;
 }
 
 Node *less_than(Pair *args, Env *env) {
@@ -207,6 +303,7 @@ Node *less_than(Pair *args, Env *env) {
     case NODE_CMP_LT:
         ret = true_node;
         break;
+    case NODE_CMP_NE:
     case NODE_CMP_EQ:
     case NODE_CMP_GT:
         ret = false_node;
@@ -260,7 +357,7 @@ Type const quote_type = {
 
 typedef struct Macro {
     Node;
-    Pair *vars;
+    Formals formals[1];
     Node *text;
 } Macro;
 
@@ -268,35 +365,38 @@ extern Type const macro_type;
 
 static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     Macro *macro = (Macro *)_macro;
-    visit(macro->vars, arg);
     visit(macro->text, arg);
+    traverse_formals(macro->formals, visit, arg);
 }
 
-static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
+// doesn't fail
+static Pair *append(Pair *first, Pair *second) {
+    if (first == nil_node) {
+        node_ref(second);
+        return second;
+    }
+    Pair *dec = append(first->dec, second);
+    Node *addr = first->addr;
+    Pair *ret = pair_new();
+    node_ref(addr);
+    ret->addr = addr;
+    ret->dec = dec;
+    return ret;
+}
+
+static Node *macro_apply(Node *_macro, Pair *args, Node *vargs, Env *env) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
+    Pair *vargs_pair = pair_check(vargs);
+    Pair *flat_args = append(args, vargs_pair);
     Env *sub_env = env_new(env);
-    Pair *vars = macro->vars;
-    for (;; args = args->dec, vars = vars->dec) {
-        if (!args->addr) {
-            if (vars->addr) {
-                node_unref(sub_env);
-                return NULL;
-            }
-            else break;
-        } else if (!vars->addr) {
-            node_unref(sub_env);
-            return NULL;
-        }
-        Symbol *var = symbol_check(vars->addr);
-        if (!var) {
-            node_unref(sub_env);
-            return NULL;
-        }
-        node_ref(args->addr);
-        env_set(sub_env, symbol_str(var), args->addr);
+    if (!extend_environment(macro->formals, flat_args, sub_env)) {
+        node_unref(sub_env);
+        node_unref(flat_args);
+        return NULL;
     }
     Node *code = eval(macro->text, sub_env);
+    node_unref(flat_args);
     node_unref(sub_env);
     if (!code) return NULL;
     Node *ret = eval(code, env);
@@ -344,36 +444,83 @@ Type const macro_type = {
 };
 
 Node *macro(Pair *args, Env *env) {
-    Pair *vars = pair_check(args->addr);
-    if (!vars) return NULL;
+    Node *formals_arg = args->addr;
+    if (!formals_arg) return NULL;
     args = args->dec;
     Node *text = args->addr;
     if (!text) return NULL;
+    args = args->dec;
+    if (args->addr) return NULL;
+    Formals formals;
+    if (!formals_init(&formals, formals_arg)) return NULL;
     Macro *ret = malloc(sizeof *ret);
     node_init(ret, &macro_type);
     node_ref(text);
     ret->text = text;
-    node_ref(vars);
-    ret->vars = vars;
+    *ret->formals = formals;
     return ret;
 }
 
 typedef struct {
     Node;
     Node *(*apply)(Pair *args, Env *env);
+    char const *name;
 } Primitive;
+
+typedef Primitive Special;
 
 static Type const primitive_type;
 
 typedef Node *(*PrimitiveApplyFunc)(Pair *, Env *);
 
-static Node *primitive_apply(Node *_proc, Pair *args, Env *env) {
+static Pair *eval_args(Pair *fixed, Node *rest, Env *env) {
+    Pair *fixed_eval = eval_list(fixed, env);
+    if (!rest) return fixed_eval;
+    if (!fixed_eval) return NULL;
+    Node *rest_eval = eval(rest, env);
+    if (!rest_eval) {
+        node_unref(fixed_eval);
+        return NULL;
+    }
+    Pair *rest_eval_pair = pair_check(rest_eval);
+    if (!rest_eval_pair) {
+        node_unref(fixed_eval);
+        node_unref(rest_eval);
+        return NULL;
+    }
+    Pair *ret = append(fixed_eval, rest_eval_pair);
+    node_unref(fixed_eval);
+    node_unref(rest_eval);
+    return ret;
+}
+
+static Node *primitive_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
     Primitive *proc = (Primitive *)_proc;
-    return proc->apply(args, env);
+    Pair *flat_args = eval_args(args, vargs, env);
+    Node *ret = proc->apply(flat_args, env);
+    node_unref(flat_args);
+    return ret;
+}
+
+static Node *special_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
+    Primitive *proc = (Primitive *)_proc;
+    Pair *flat_args;
+    if (vargs) {
+        Pair *vargs_pair = pair_check(vargs);
+        if (!vargs_pair) return NULL;
+        flat_args = append(args, vargs_pair);
+    } else {
+        flat_args = args;
+        node_ref(flat_args);
+    }
+    Node *ret = proc->apply(flat_args, env);
+    node_unref(flat_args);
+    return ret;
 }
 
 static void primitive_print(Node *_n, Printer *p) {
-    fprintf(p->file, "<%p>", _n);
+    Primitive *prim = (Primitive *)_n;
+    fprintf(p->file, "#(%s)", prim->name);
 }
 
 static Type const primitive_type = {
@@ -382,10 +529,23 @@ static Type const primitive_type = {
     .print = primitive_print,
 };
 
-static Primitive *primitive_new(PrimitiveApplyFunc func) {
+static Type const special_type = {
+    .name = "special",
+    .apply = special_apply,
+    .print = primitive_print,
+};
+
+static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
     Primitive *ret = malloc(sizeof *ret);
     node_init(ret, &primitive_type);
     ret->apply = func;
+    ret->name = name;
+    return ret;
+}
+
+static Special *special_new(PrimitiveApplyFunc func, char const *name) {
+    Special *ret = primitive_new(func, name);
+    ret->type = &special_type;
     return ret;
 }
 
@@ -394,34 +554,28 @@ static Node *apply_car(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     // more than 1 arg
     if (args->dec->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
+    Node *node = args->addr;
     // argument is not a pair
     Pair *pair = pair_check(node);
     if (!pair) {
-        node_unref(node);
+        fprintf(stderr, "expected a pair: ");
+        node_print_file(node, stderr);
+        fputc('\n', stderr);
         return NULL;
     }
     Node *ret = pair->addr;
     // this would make the pair the nil type, which has no car
     if (ret) node_ref(ret);
-    node_unref(node);
     return ret;
 }
 
 static Node *apply_cdr(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     if (args->dec->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
-    if (node->type != &pair_type) {
-        node_unref(node);
-        return NULL;
-    }
-    Pair *pair = (Pair *)node;
+    Pair *pair = pair_check(args->addr);
+    if (!pair || pair == nil_node) return NULL;
     Pair *ret = pair->dec;
     node_ref(ret);
-    node_unref(pair);
     return ret;
 }
 
@@ -447,27 +601,150 @@ static Node *apply_plus(Pair *args, Env *env) {
     return int_new(ll);
 }
 
-Env *top_env_new() {
-    Env *ret = env_new(NULL);
-    env_set(ret, "*", primitive_new(apply_splat));
-    env_set(ret, "+", primitive_new(apply_plus));
-    env_set(ret, "symbol?", primitive_new(apply_symbol_query));
-    env_set(ret, "=", primitive_new(assign));
-    env_set(ret, "^", primitive_new(lambda));
-    env_set(ret, "?", primitive_new(apply_if));
-    env_set(ret, "<", primitive_new(less_than));
-    env_set(ret, "-", primitive_new(subtract));
-    env_set(ret, "pair?", primitive_new(is_pair));
-    env_set(ret, "#", primitive_new(macro));
-    env_set(ret, "list", primitive_new(apply_list));
-    env_set(ret, "car", primitive_new(apply_car));
-    env_set(ret, "cdr", primitive_new(apply_cdr));
+static Node *apply_null_query(Pair *args, Env *env) {
+    if (!args->addr || args->dec->addr) return NULL;
+    Node *node = eval(args->addr, env);
+    if (!node) return NULL;
+    Pair *pair = pair_check(node);
+    if (!pair) {
+        node_unref(node);
+        return NULL;
+    }
+    Node *ret = pair->addr ? false_node : true_node;
+    node_ref(ret);
+    node_unref(pair);
     return ret;
 }
+
+static size_t list_length(Pair *list) {
+    size_t ret = 0;
+    for (; list->addr; ret++, list = list->dec);
+    return ret;
+}
+
+static Node *apply_cons(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
+    args = eval_list(args, env);
+    if (!args) return NULL;
+    Pair *dec = pair_check(args->dec->addr);
+    if (!dec) {
+        node_unref(args);
+        return NULL;
+    }
+    Pair *ret = pair_new();
+    ret->addr = args->addr;
+    node_ref(ret->addr);
+    ret->dec = dec;
+    node_ref(ret->dec);
+    node_unref(args);
+    return ret;
+}
+
+static Node *apply_eq_query(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
+    Node *ret;
+    switch (node_compare(args->addr, args->dec->addr)) {
+    case NODE_CMP_ERR:
+        ret = NULL;
+        break;
+    case NODE_CMP_EQ:
+        ret = true_node;
+        break;
+    default:
+        ret = false_node;
+    }
+    if (ret) node_ref(ret);
+    return ret;
+}
+
+// TODO test crash for (apply f)
+static Node *apply_apply(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
+    Node *proc = eval(args->addr, env);
+    if (!proc) return NULL;
+    Node *ret = node_apply(proc, nil_node, args->dec->addr, env);
+    node_unref(proc);
+    return ret;
+}
+
+static Node *apply_define(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
+    Pair *pair = pair_check(args->addr);
+    if (!pair) return assign(args, env);
+    Symbol *name = symbol_check(pair->addr);
+    if (!name) return NULL;
+    Closure *closure = NULL;
+    if (list_length(pair->dec) == 2) {
+        Symbol *dot = symbol_check(pair->dec->addr);
+        if (!dot) return NULL;
+        if (!strcmp(".", symbol_str(dot))) {
+            closure = closure_new(pair->dec->dec->addr, args->dec->addr, env);
+            if (!closure) return NULL; // Y U NO CLOSURE?
+        }
+    }
+    if (!closure) closure = closure_new(pair->dec, args->dec->addr, env);
+    if (!closure) return NULL;
+    env_set(env, symbol_str(name), closure);
+    node_ref(void_node);
+    return void_node;
+}
+
+typedef struct {
+    char const *name;
+    PrimitiveApplyFunc apply;
+} PrimitiveType;
+
+static PrimitiveType special_forms[] = {
+    {"lambda", apply_lambda},
+    {"if", apply_if},
+    {"macro", macro},
+    {"define", apply_define},
+    {"apply", apply_apply},
+};
+
+static PrimitiveType primitives[] = {
+    {"*", apply_splat},
+    {"+", apply_plus},
+    {"symbol?", apply_symbol_query},
+    {"<", less_than},
+    {"-", subtract},
+    {"pair?", is_pair},
+    {"list", apply_list},
+    {"car", apply_car},
+    {"cdr", apply_cdr},
+    {"null?", apply_null_query},
+    {"cons", apply_cons},
+    {"eq?", apply_eq_query},
+    {"=", apply_eq_query}, // TODO split =/ eqv? eq
+};
+
+Env *top_env_new() {
+    Env *ret = env_new(NULL);
+    PrimitiveType *prim = special_forms;
+    size_t count = sizeof special_forms / sizeof *special_forms;
+    for (; count; prim++, count--) {
+        if (!env_define(ret, prim->name, special_new(prim->apply, prim->name))) {
+            node_unref(ret);
+            return NULL;
+        }
+    }
+    prim = primitives;
+    count = sizeof primitives / sizeof *primitives;
+    for (; count; prim++, count--) {
+        if (!env_define(ret, prim->name, primitive_new(prim->apply, prim->name))) {
+            node_unref(ret);
+            return NULL;
+        }
+    }
+    return ret;
+}
+
 void meme_init() {
     assert(!all_nodes);
     all_nodes = g_hash_table_new(g_direct_hash, g_direct_equal);
     g_hash_table_add(all_nodes, nil_node);
+    g_hash_table_add(all_nodes, true_node);
+    g_hash_table_add(all_nodes, false_node);
 }
 
 static void inc_node_refs_in_table(Node *node, void *_table) {
@@ -595,6 +872,8 @@ void meme_final() {
     collect_cycles();
     if (nil_node->refs != 1) abort();
     if (!g_hash_table_remove(all_nodes, nil_node)) abort();
+    if (!g_hash_table_remove(all_nodes, true_node)) abort();
+    if (!g_hash_table_remove(all_nodes, false_node)) abort();
     if (g_hash_table_size(all_nodes)) abort();
     g_hash_table_destroy(all_nodes);
     all_nodes = NULL;

@@ -41,7 +41,7 @@ int node_truth(Node *node) {
     return node->type->truth(node);
 }
 
-Node *node_apply(Node *proc, Pair *args, Env *env) {
+Node *node_apply(Node *proc, Pair *args, Node *vargs, Env *env) {
     if (!proc->type->apply) return NULL;
-    return proc->type->apply(proc, args, env);
+    return proc->type->apply(proc, args, vargs, env);
 }

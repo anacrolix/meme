@@ -21,7 +21,7 @@ static Node *pair_eval(Node *node, Env *env) {
     Pair *pair = pair_check(node);
     Node *proc = eval(pair->addr, env);
     if (!proc) return NULL;
-    Node *ret = node_apply(proc, pair->dec, env);
+    Node *ret = node_apply(proc, pair->dec, NULL, env);
     node_unref(proc);
     return ret;
 }

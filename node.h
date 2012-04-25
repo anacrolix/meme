@@ -14,7 +14,7 @@ typedef struct Node {
 
 void node_init(Node *, Type const *);
 void node_print(Node *, Printer *p);
-Node *node_apply(Node *, Pair *args, Env *);
+Node *node_apply(Node *, Pair *args, Node *, Env *);
 void node_ref(Node *);
 void node_unref(Node *);
 int node_truth(Node *);
