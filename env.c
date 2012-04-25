@@ -22,8 +22,17 @@ Node *env_find(Env *env, char const *key) {
     return value;
 }
 
-void env_set(Env *env, char const *key, Node *value) {
+bool env_set(Env *env, char const *key, Node *value) {
+    if (g_hash_table_contains(env->table, key)) return false;
     g_hash_table_insert(env->table, strdup(key), value);
+    return true;
+}
+
+// this can probably accept NULL value "*unassigned*"
+bool env_define(Env *env, char const *key, Node *value) {
+    if (g_hash_table_contains(env->table, key)) return false;
+    g_hash_table_insert(env->table, strdup(key), value);
+    return true;
 }
 
 Env *env_check(Node *node) {

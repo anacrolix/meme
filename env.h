@@ -1,6 +1,7 @@
 #pragma once
 
 #include "node.h"
+#include <stdbool.h>
 
 typedef struct Env {
     Node;
@@ -9,5 +10,6 @@ typedef struct Env {
 } Env;
 
 Env *env_new(Env *);
-void env_set(Env *, char const *, Node *);
+bool env_set(Env *, char const *, Node *);
+bool env_define(Env *, char const *, Node *);
 Node *env_find(Env *, char const *);
