@@ -47,7 +47,10 @@ Node *assign(Pair *args, Env *env) {
     if (!value) return NULL;
     char const *key = symbol_str(var);
     // steals ref to value, copies key
-    env_set(env, key, value);
+    if (!env_define(env, key, value)) {
+        node_unref(value);
+        return NULL;
+    }
     node_ref(void_node);
     return void_node;
 }
@@ -91,7 +94,6 @@ static Pair *parse_formals(Pair *vars, Symbol **rest) {
     pair->dec = dec;
     return pair;
 }
-
 
 static bool formals_init(Formals *f, Node *node) {
     Pair *pair = pair_check(node); 
@@ -139,12 +141,12 @@ static bool extend_environment(Formals *formals, Pair *args, Env *env) {
     for (; fixed->addr; fixed = fixed->dec, args = args->dec) {
         // not all fixed arguments were given
         if (!args->addr) return false;
+        if (!env_define(env, symbol_str((Symbol *)fixed->addr), args->addr)) return false;
         node_ref(args->addr);
-        env_set(env, symbol_str((Symbol *)fixed->addr), args->addr);
     }
     if (formals->rest) {
+        if (!env_define(env, symbol_str(formals->rest), args)) return false;
         node_ref(args);
-        env_set(env, symbol_str(formals->rest), args);
     } else if (args->addr) return false;
     return true;
 }
@@ -358,7 +360,6 @@ Type const quote_type = {
 
 typedef struct Macro {
     Node;
-    Formals formals[1];
     Node *text;
 } Macro;
 
@@ -367,7 +368,6 @@ extern Type const macro_type;
 static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     Macro *macro = (Macro *)_macro;
     visit(macro->text, arg);
-    traverse_formals(macro->formals, visit, arg);
 }
 
 // doesn't fail
@@ -388,18 +388,10 @@ static Pair *append(Pair *first, Pair *second) {
 static Node *macro_apply(Node *_macro, Pair *args, Node *vargs, Env *env) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
-    Pair *vargs_pair = pair_check(vargs);
-    Pair *flat_args = append(args, vargs_pair);
-    Env *sub_env = env_new(env);
-    if (!extend_environment(macro->formals, flat_args, sub_env)) {
-        node_unref(sub_env);
-        node_unref(flat_args);
-        return NULL;
-    }
-    Node *code = eval(macro->text, sub_env);
-    node_unref(flat_args);
-    node_unref(sub_env);
-    if (!code) return NULL;
+    Node *code = node_apply(macro->text, args, vargs, env);
+    fprintf(stderr, "macro produced: ");
+    node_print_file(code, stderr);
+    fputc('\n', stderr);
     Node *ret = eval(code, env);
     node_unref(code);
     return ret;
@@ -444,21 +436,15 @@ Type const macro_type = {
     .traverse = macro_traverse,
 };
 
-Node *macro(Pair *args, Env *env) {
-    Node *formals_arg = args->addr;
-    if (!formals_arg) return NULL;
-    args = args->dec;
-    Node *text = args->addr;
+Node *macro_new(Pair *args, Env *env) {
+    if (is_null(args)) return NULL;
+    if (!is_null(args->dec)) return NULL;
+    Node *text = eval(args->addr, env);
     if (!text) return NULL;
-    args = args->dec;
-    if (args->addr) return NULL;
-    Formals formals;
-    if (!formals_init(&formals, formals_arg)) return NULL;
     Macro *ret = malloc(sizeof *ret);
     node_init(ret, &macro_type);
     node_ref(text);
     ret->text = text;
-    *ret->formals = formals;
     return ret;
 }
 
@@ -674,7 +660,10 @@ static Node *apply_define(Pair *args, Env *env) {
     }
     if (!closure) closure = closure_new(pair->dec, args->dec->addr, env);
     if (!closure) return NULL;
-    env_set(env, symbol_str(name), closure);
+    if (!env_define(env, symbol_str(name), closure)) {
+        node_unref(closure);
+        return NULL;
+    }
     node_ref(void_node);
     return void_node;
 }
@@ -687,7 +676,7 @@ typedef struct {
 static PrimitiveType special_forms[] = {
     {"lambda", apply_lambda},
     {"if", apply_if},
-    {"macro", macro},
+    {"macro", macro_new},
     {"define", apply_define},
     {"apply", apply_apply},
 };

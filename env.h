@@ -11,5 +11,6 @@ typedef struct Env {
 
 Env *env_new(Env *);
 bool env_set(Env *, char const *, Node *);
+__attribute__((warn_unused_result))
 bool env_define(Env *, char const *, Node *);
 Node *env_find(Env *, char const *);

@@ -23,14 +23,24 @@ Node *env_find(Env *env, char const *key) {
 }
 
 bool env_set(Env *env, char const *key, Node *value) {
-    if (g_hash_table_contains(env->table, key)) return false;
+    gpointer old_value;
+    // if the variable has not been defined, this is an error
+    if (!g_hash_table_lookup_extended(env->table, key, NULL, &old_value)) {
+        fprintf(stderr, "can't set an undefined variable: %s\n", key);
+        return false;
+    }
+    // free the existing value if it's been set
+    if (old_value) node_unref(old_value);
     g_hash_table_insert(env->table, strdup(key), value);
     return true;
 }
 
 // this can probably accept NULL value "*unassigned*"
 bool env_define(Env *env, char const *key, Node *value) {
-    if (g_hash_table_contains(env->table, key)) return false;
+    if (g_hash_table_contains(env->table, key)) {
+        fprintf(stderr, "variable %s already defined\n", key);
+        return false;
+    }
     g_hash_table_insert(env->table, strdup(key), value);
     return true;
 }
