@@ -27,7 +27,7 @@ static Node *apply_splat(Pair *args, Env *env) {
     return int_new(ll);
 }
 
-Node *assign(Pair *args, Env *env) {
+Node *apply_builtin_define(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     Symbol *var = symbol_check(args->addr);
     if (!var) return NULL;
@@ -67,6 +67,7 @@ static Pair *parse_formals(Pair *vars, Symbol **rest) {
     if (!addr) return NULL;
     if (!strcmp(".", symbol_str(addr))) {
         // check the node after the . is a symbol and store it
+        if (is_null(vars->dec)) return NULL;
         *rest = symbol_check(vars->dec->addr);
         if (!*rest) return NULL;
         // more than one symbol after the .
@@ -553,31 +554,6 @@ static Node *apply_apply(Pair *args, Env *env) {
     return ret;
 }
 
-static Node *apply_define(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
-    Pair *pair = pair_check(args->addr);
-    if (!pair) return assign(args, env);
-    Symbol *name = symbol_check(pair->addr);
-    if (!name) return NULL;
-    Closure *closure = NULL;
-    if (list_length(pair->dec) == 2) {
-        Symbol *dot = symbol_check(pair->dec->addr);
-        if (!dot) return NULL;
-        if (!strcmp(".", symbol_str(dot))) {
-            closure = closure_new(pair->dec->dec->addr, args->dec->addr, env);
-            if (!closure) return NULL; // Y U NO CLOSURE?
-        }
-    }
-    if (!closure) closure = closure_new(pair->dec, args->dec->addr, env);
-    if (!closure) return NULL;
-    if (!env_define(env, symbol_str(name), closure)) {
-        node_unref(closure);
-        return NULL;
-    }
-    node_ref(void_node);
-    return void_node;
-}
-
 static Node *apply_begin(Pair *args, Env *env) {
     for (; !is_null(args->dec); args = args->dec);
     node_ref(args->addr);
@@ -592,7 +568,7 @@ typedef struct {
 static PrimitiveType special_forms[] = {
     {"lambda", apply_lambda},
     {"if", apply_if},
-    {"define", apply_define},
+    {"__define", apply_builtin_define},
 };
 
 static PrimitiveType primitives[] = {

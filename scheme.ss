@@ -1,3 +1,9 @@
+(__define define (macro (lambda (formals body)
+  (cons '__define 
+        (if (pair? formals)
+            (list (car formals) (list 'lambda (cdr formals) body))
+            (list formals body))))))
+
 (define (not x) (if x #f #t))
 (define (/= . a) (not (apply = a)))
 (define (> a b) (< b a))

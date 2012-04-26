@@ -15,3 +15,8 @@
   (error))
 (if (not (= 6 ((lambda a (apply begin a)) 2 4 6))) (error))
 
+; define formals
+(define (d . e) e)
+(if (/= b (apply d b)) (error))
+(if (/= b (apply (lambda a a) b)) (error))
+
