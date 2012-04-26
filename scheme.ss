@@ -1,9 +1,17 @@
-(__define define (macro (lambda (formals body)
+(__define define (macro (lambda (formals . body)
   (cons '__define 
         (if (pair? formals)
-            (list (car formals) (list 'lambda (cdr formals) body))
-            (list formals body))))))
-
+            (list (car formals) (list 'lambda (cdr formals) (cons 'begin body)))
+            (list formals (cons 'begin body)))))))
+(define defmacro (macro (lambda (formals . body)
+  (cons '__define
+        (if (pair? formals)
+            (list (car formals) (list 'macro (list 'lambda (cdr formals) (cons 'begin body))))
+            (list formals (list 'macro (cons 'begin body))))))))
+(define quote __quote)
+(define defined? __defined?)
+(define undef __undef)
+(define set! __set!)
 (define (not x) (if x #f #t))
 (define (/= . a) (not (apply = a)))
 (define (> a b) (< b a))
@@ -21,6 +29,11 @@
     (if (eq? 'else (car first))
       (pack-exps (cdr first))
       (list 'if (car first) (pack-exps (cdr first)) (apply unpack rest)))))
-(define cond (macro (lambda clauses (apply unpack clauses))))
+(defmacro (cond . clauses) (apply unpack clauses))
+(defmacro (define! formals body)
+  (define sym (if (pair? formals) (car formals) formals))
+  (list 'begin
+        (list 'if (list 'defined? sym) (list 'undef sym))
+        (list 'define formals body)))
 
 

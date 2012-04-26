@@ -20,3 +20,13 @@
 (if (/= b (apply d b)) (error))
 (if (/= b (apply (lambda a a) b)) (error))
 
+; cond
+(define (test-cond) 
+  (cond ((eq? a 2) 1)
+        ((= 4 7) 2)
+        (else 3)))
+(define! a 2)
+(if (/= 1 (test-cond)) (error))
+(set! a 4)
+(if (/= 3 (test-cond)) (error))
+(undef a)
