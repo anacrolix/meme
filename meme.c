@@ -101,6 +101,23 @@ static bool formals_init(Formals *f, Node *node) {
     return true;
 }
 
+static void formals_print(Formals const *f, Printer *p) {
+    if (f->rest && f->fixed == nil_node) {
+        node_print(f->rest, p);
+        return;
+    }
+    fputc('(', p->file);
+    Pair *args = f->fixed;
+    for (; !is_null(args); args = args->dec) {
+        node_print(args->addr, p);
+    }
+    if (f->rest) {
+        fprintf(p->file, " . ");
+        node_print(f->rest, p);
+    }
+    fputc(')', p->file);
+}
+
 static void traverse_formals(Formals *f, VisitProc visit, void *arg) {
     visit(f->fixed, arg);
     if (f->rest) visit(f->rest, arg);
@@ -122,9 +139,10 @@ static void closure_traverse(Node *_c, VisitProc visit, void *arg) {
 
 void closure_print(Node *_n, Printer *p) {
     Closure *n = (Closure *)_n;
-    fprintf(stderr, "<closure ");
+    fprintf(p->file, "#(lambda ");
+    formals_print(n->formals, p);
     node_print(n->body, p);
-    fputc('>', stderr);
+    fputs(")", p->file);
 }
 
 static bool extend_environment(Formals *formals, Pair *args, Env *env) {
@@ -138,7 +156,10 @@ static bool extend_environment(Formals *formals, Pair *args, Env *env) {
     if (formals->rest) {
         if (!env_define(env, symbol_str(formals->rest), args)) return false;
         node_ref(args);
-    } else if (args->addr) return false;
+    } else if (args->addr) {
+        fprintf(stderr, "too many arguments\n");
+        return false;
+    }
     return true;
 }
 
@@ -146,6 +167,11 @@ static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
     Closure *proc = (Closure *)_proc;
     Env *sub_env = env_new(proc->env);
     if (!extend_environment(proc->formals, args, sub_env)) {
+        fprintf(stderr, "error extending environment\n  procedure: ");
+        node_print_file(proc, stderr);
+        fprintf(stderr, "\n  arguments: ");
+        node_print_file(args, stderr);
+        fputc('\n', stderr);
         node_unref(sub_env);
         return NULL;
     }
