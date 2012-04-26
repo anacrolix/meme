@@ -321,13 +321,9 @@ Node *less_than(Pair *args, Env *env) {
 }
 
 Node *is_pair(Pair *args, Env *env) {
-    // only take one arg
-    if (args->dec->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
-    Node *ret = pair_check(node) ? true_node : false_node;
+    if (is_null(args) || !is_null(args->dec)) return NULL;
+    Node *ret = pair_check(args->addr) ? true_node : false_node;
     node_ref(ret);
-    node_unref(node);
     return ret;
 }
 
@@ -416,7 +412,8 @@ static Pair *eval_list(Pair *args, Env *env) {
 }
 
 static Node *apply_list(Pair *args, Env *env) {
-    return eval_list(args, env);
+    node_ref(args);
+    return args;
 }
 
 static void macro_print(Node *_macro, Printer *p) {
@@ -668,6 +665,12 @@ static Node *apply_define(Pair *args, Env *env) {
     return void_node;
 }
 
+static Node *apply_begin(Pair *args, Env *env) {
+    for (; !is_null(args->dec); args = args->dec);
+    node_ref(args->addr);
+    return args->addr;
+}
+
 typedef struct {
     char const *name;
     PrimitiveApplyFunc apply;
@@ -695,6 +698,7 @@ static PrimitiveType primitives[] = {
     {"cons", apply_cons},
     {"eq?", apply_eq_query},
     {"=", apply_eq_query}, // TODO split =/ eqv? eq
+    {"begin", apply_begin},
 };
 
 Env *top_env_new() {
