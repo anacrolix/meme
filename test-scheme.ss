@@ -30,3 +30,6 @@
 (set! a 4)
 (if (/= 3 (test-cond)) (error))
 (undef a)
+
+; map
+(map (lambda (x y) (* x y)) '(1 3 5) '(2 4 6))

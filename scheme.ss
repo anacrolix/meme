@@ -36,4 +36,10 @@
         (list 'if (list 'defined? sym) (list 'undef sym))
         (list 'define formals body)))
 
+(define (list-comp f lst)
+  (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))
+(define (map f . is)
+  (define heads (lambda (a) (list-comp car a)))
+  (define tails (lambda (a) (list-comp cdr a)))
+  (if (null? (car is)) '() (cons (apply f (heads is)) (apply map f (tails is)))))
 
