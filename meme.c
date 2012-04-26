@@ -321,21 +321,6 @@ static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     visit(macro->text, arg);
 }
 
-// doesn't fail
-static Pair *append(Pair *first, Pair *second) {
-    if (first == nil_node) {
-        node_ref(second);
-        return second;
-    }
-    Pair *dec = append(first->dec, second);
-    Node *addr = first->addr;
-    Pair *ret = pair_new();
-    node_ref(addr);
-    ret->addr = addr;
-    ret->dec = dec;
-    return ret;
-}
-
 static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
@@ -387,6 +372,7 @@ Type const macro_type = {
     .apply = macro_apply,
     .print = macro_print,
     .traverse = macro_traverse,
+    .special = true,
 };
 
 Node *macro_new(Pair *args, Env *env) {
@@ -606,7 +592,6 @@ typedef struct {
 static PrimitiveType special_forms[] = {
     {"lambda", apply_lambda},
     {"if", apply_if},
-    {"macro", macro_new},
     {"define", apply_define},
 };
 
@@ -626,6 +611,7 @@ static PrimitiveType primitives[] = {
     {"=", apply_eq_query}, // TODO split =/ eqv? eq
     {"begin", apply_begin},
     {"apply", apply_apply},
+    {"macro", macro_new},
 };
 
 Env *top_env_new() {

@@ -5,10 +5,16 @@
 (define (cdar x) (cdr (car x)))
 (define (append x y)
   (if (null? x) y (cons (car x) (append (cdr x) y))))
-;(define cond (macro (lambda clauses
-;  (define (unpack first . rest)
-;    (if (eq? 'else (car first))
-;      (append '(begin) (cdr first))
-;      (list 'if (car first) (cons 'begin (cdr first)) (unpack rest))))
-;  (unpack clauses))))
+(define (length x) (if (null? x) 0 (+ 1 (length (cdr x)))))
+(define (unpack first . rest)
+  (begin
+    (define (pack-exps exps)
+      (if (= 1 (length exps))
+        (car exps)
+        (cons 'begin exps)))
+    (if (eq? 'else (car first))
+      (pack-exps (cdr first))
+      (list 'if (car first) (pack-exps (cdr first)) (apply unpack rest)))))
+(define cond (macro (lambda clauses (apply unpack clauses))))
+
 
