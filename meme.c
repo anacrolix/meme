@@ -560,6 +560,48 @@ static Node *apply_begin(Pair *args, Env *env) {
     return args->addr;
 }
 
+static Node *apply_defined_query(Pair *args, Env *env) {
+    if (list_length(args) != 1) return NULL;
+    Symbol *var = symbol_check(args->addr);
+    if (!var) return NULL;
+    Node *ret = env_is_defined(env, symbol_str(var)) ? true_node : false_node;
+    node_ref(ret);
+    return ret;
+}
+
+static Node *apply_quote(Pair *args, Env *env) {
+    if (list_length(args) != 1) return NULL;
+    Quote *quote = malloc(sizeof *quote);
+    node_init(quote, &quote_type);
+    quote->quoted = args->addr;
+    node_ref(quote->quoted);
+    return quote;
+}
+
+
+static Node *apply_undef(Pair *args, Env *env) {
+    if (list_length(args) != 1) return NULL;
+    Symbol *sym = symbol_check(args->addr);
+    if (!sym) return NULL;
+    if (!env_undefine(env, symbol_str(sym))) return NULL;
+    node_ref(void_node);
+    return void_node;
+}
+
+static Node *apply_set_bang(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
+    Symbol *var = symbol_check(args->addr);
+    if (!var) return NULL;
+    Node *value = eval(args->dec->addr, env);
+    if (!value) return NULL;
+    if (!env_set(env, symbol_str(var), value)) {
+        node_unref(value);
+        return NULL;
+    }
+    node_ref(void_node);
+    return void_node;
+}
+
 typedef struct {
     char const *name;
     PrimitiveApplyFunc apply;
@@ -569,6 +611,9 @@ static PrimitiveType special_forms[] = {
     {"lambda", apply_lambda},
     {"if", apply_if},
     {"__define", apply_builtin_define},
+    {"__set!", apply_set_bang},
+    {"__undef", apply_undef},
+    {"__defined?", apply_defined_query},
 };
 
 static PrimitiveType primitives[] = {
@@ -588,6 +633,7 @@ static PrimitiveType primitives[] = {
     {"begin", apply_begin},
     {"apply", apply_apply},
     {"macro", macro_new},
+    {"__quote", apply_quote},
 };
 
 Env *top_env_new() {

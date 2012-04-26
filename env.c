@@ -45,6 +45,18 @@ bool env_define(Env *env, char const *key, Node *value) {
     return true;
 }
 
+bool env_undefine(Env *env, char const *key) {
+    gpointer value;
+    if (!g_hash_table_lookup_extended(env->table, key, NULL, &value)) return false;
+    if (value) node_unref(value);
+    if (!g_hash_table_remove(env->table, key)) abort();
+    return true;
+}
+
+bool env_is_defined(Env *env, char const *key) {
+    return g_hash_table_contains(env->table, key);
+}
+
 Env *env_check(Node *node) {
     return node->type == &env_type ? (Env *)node : NULL;
 }
@@ -99,3 +111,4 @@ Env *env_new(Env *outer) {
     if (outer) node_ref(outer);
     return ret;
 }
+

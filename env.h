@@ -14,3 +14,5 @@ bool env_set(Env *, char const *, Node *);
 __attribute__((warn_unused_result))
 bool env_define(Env *, char const *, Node *);
 Node *env_find(Env *, char const *);
+bool env_is_defined(Env *, char const *);
+bool env_undefine(Env *, char const *);
