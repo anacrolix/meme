@@ -17,11 +17,24 @@ static void pair_print(Node *node, Printer *p) {
     fputc(')', p->file);
 }
 
-static Node *pair_eval(Node *node, Env *env) {
-    Pair *pair = pair_check(node);
+static Node *pair_eval(Node *_pair, Env *env) {
+    assert(_pair->type == &pair_type);
+    Pair *pair = (Pair *)_pair;
     Node *proc = eval(pair->addr, env);
     if (!proc) return NULL;
-    Node *ret = node_apply(proc, pair->dec, NULL, env);
+    Pair *args;
+    if (node_special(proc)) {
+        args = pair->dec;
+        node_ref(args);
+    } else {
+        args = eval_list(pair->dec, env);
+        if (!args) {
+            node_unref(proc);
+            return NULL;
+        }
+    }
+    Node *ret = node_apply(proc, args, env);
+    node_unref(args);
     node_unref(proc);
     return ret;
 }

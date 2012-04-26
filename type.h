@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 typedef struct Node Node;
 typedef struct Env Env;
 typedef struct Printer Printer;
@@ -14,7 +16,7 @@ typedef enum {
     NODE_CMP_NOT_IMPLEMENTED,
 } NodeCmp;
 
-typedef Node *(*ApplyFunc)(Node *, Pair *, Node *, Env *);
+typedef Node *(*ApplyFunc)(Node *, Pair *, Env *);
 typedef Node *(*EvalFunc)(Node *, Env *);
 typedef void (*VisitProc)(Node *, void *);
 typedef void (*TraverseProc)(Node *, VisitProc, void *);
@@ -23,11 +25,11 @@ typedef NodeCmp (*CompareFunc)(Node *, Node *);
 typedef struct Type {
     char const *name;
     EvalFunc eval;
-    int (*truth)(Node *);
-    void (*dealloc)(Node *);
-    void (*print)(Node *, Printer *);
-    ApplyFunc apply;
     TraverseProc traverse;
+    void (*dealloc)(Node *);
+    ApplyFunc apply;
+    void (*print)(Node *, Printer *);
     CompareFunc compare;
+    bool special;
 } Type;
 

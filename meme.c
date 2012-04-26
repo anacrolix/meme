@@ -9,28 +9,18 @@ static bool is_null(Pair *pair) {
     return pair == nil_node;
 }
 
-static Pair *eval_list(Pair *args, Env *env);
-static Pair *eval_args(Pair *fixed, Node *rest, Env *env);
-
-static Int *eval_to_int(Node *node, Env *env) {
-    Node *castee = eval(node, env);
-    if (!castee) return NULL;
-    Int *ret = int_check(castee);
-    if (!ret) node_unref(castee);
-    return ret;
-}
+static size_t list_length(Pair *list);
 
 static Node *apply_splat(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     if (!args->dec->addr) return NULL;
-    Int *opnd = eval_to_int(args->addr, env);
+    Int *opnd = int_check(args->addr);
     if (!opnd) return NULL;
     long long ll = opnd->ll;
     for (;;) {
-        node_unref(opnd);
         args = args->dec;
         if (!args->addr) break;
-        opnd = eval_to_int(args->addr, env);
+        opnd = int_check(args->addr);
         if (!opnd) return NULL;
         ll *= opnd->ll;
     }
@@ -151,19 +141,15 @@ static bool extend_environment(Formals *formals, Pair *args, Env *env) {
     return true;
 }
 
-static Node *closure_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
+static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
     Closure *proc = (Closure *)_proc;
-    Pair *values = eval_args(args, vargs, env);
-    if (!values) return NULL;
     Env *sub_env = env_new(proc->env);
-    if (!extend_environment(proc->formals, values, sub_env)) {
-        node_unref(values);
+    if (!extend_environment(proc->formals, args, sub_env)) {
         node_unref(sub_env);
         return NULL;
     }
     Node *ret = eval(proc->body, sub_env);
     node_unref(sub_env);
-    node_unref(values);
     return ret;
 }
 
@@ -222,37 +208,19 @@ Node *apply_if(Pair *args, Env *env) {
 }
 
 Node *subtract(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    Node *node = eval(args->addr, env);
-    if (!node) return NULL;
-    Int *operand = int_check(node);
-    if (!operand) {
-        node_unref(node);
-        return NULL;
-    }
+    if (is_null(args)) return NULL;
+    Int *operand = int_check(args->addr);
+    if (!operand) return NULL;
     args = args->dec;
-    Int *ret;
-    if (!args->addr) {
-        ret = int_new(-operand->ll);
-        node_unref(operand);
-        return ret;
-    }
-    ret = int_new(operand->ll);
-    node_unref(operand);
+    if (is_null(args)) return int_new(-operand->ll);
+    Int *ret = int_new(operand->ll);
     for (; args->addr; args = args->dec) {
-        node = eval(args->addr, env);
-        if (!node) {
-            node_unref(ret);
-            return NULL;
-        }
-        operand = int_check(node);
+        operand = int_check(args->addr);
         if (!operand) {
             node_unref(ret);
-            node_unref(operand);
             return NULL;
         }
         ret->ll -= operand->ll;
-        node_unref(operand);
     }
     return ret;
 }
@@ -272,7 +240,7 @@ static NodeCmp invert_nodecmp(NodeCmp cmp) {
     }
 }
 
-static void node_print_file(Node *node, FILE *file) {
+void node_print_file(Node *node, FILE *file) {
     node_print(node, &(Printer){.file=file});
 }
 
@@ -284,20 +252,9 @@ static NodeCmp node_compare(Node *left, Node *right) {
 }
 
 Node *less_than(Pair *args, Env *env) {
+    if (list_length(args) != 2) return NULL;
     Node *left = args->addr;
-    if (!left) return NULL;
-    args = args->dec;
-    Node *right = args->addr;
-    if (!right) return NULL;
-    args = args->dec;
-    if (args->addr) return NULL;
-    left = eval(left, env);
-    if (!left) return NULL;
-    right = eval(right, env);
-    if (!right) {
-        node_unref(left);
-        return NULL;
-    }
+    Node *right = args->dec->addr;
     Node *ret;
     switch (node_compare(left, right)) {
     case NODE_CMP_ERR:
@@ -315,8 +272,6 @@ Node *less_than(Pair *args, Env *env) {
         abort();
     }
     if (ret) node_ref(ret);
-    node_unref(left);
-    node_unref(right);
     return ret;
 }
 
@@ -381,10 +336,11 @@ static Pair *append(Pair *first, Pair *second) {
     return ret;
 }
 
-static Node *macro_apply(Node *_macro, Pair *args, Node *vargs, Env *env) {
+static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
-    Node *code = node_apply(macro->text, args, vargs, env);
+    Node *code = node_apply(macro->text, args, env);
+    if (!code) return NULL;
     fprintf(stderr, "macro produced: ");
     node_print_file(code, stderr);
     fputc('\n', stderr);
@@ -393,7 +349,7 @@ static Node *macro_apply(Node *_macro, Pair *args, Node *vargs, Env *env) {
     return ret;
 }
 
-static Pair *eval_list(Pair *args, Env *env) {
+Pair *eval_list(Pair *args, Env *env) {
     if (!args->addr) {
         node_ref(nil_node);
         return nil_node;
@@ -436,12 +392,10 @@ Type const macro_type = {
 Node *macro_new(Pair *args, Env *env) {
     if (is_null(args)) return NULL;
     if (!is_null(args->dec)) return NULL;
-    Node *text = eval(args->addr, env);
-    if (!text) return NULL;
     Macro *ret = malloc(sizeof *ret);
     node_init(ret, &macro_type);
-    node_ref(text);
-    ret->text = text;
+    ret->text = args->addr;
+    node_ref(ret->text);
     return ret;
 }
 
@@ -457,50 +411,9 @@ static Type const primitive_type;
 
 typedef Node *(*PrimitiveApplyFunc)(Pair *, Env *);
 
-static Pair *eval_args(Pair *fixed, Node *rest, Env *env) {
-    Pair *fixed_eval = eval_list(fixed, env);
-    if (!rest) return fixed_eval;
-    if (!fixed_eval) return NULL;
-    Node *rest_eval = eval(rest, env);
-    if (!rest_eval) {
-        node_unref(fixed_eval);
-        return NULL;
-    }
-    Pair *rest_eval_pair = pair_check(rest_eval);
-    if (!rest_eval_pair) {
-        node_unref(fixed_eval);
-        node_unref(rest_eval);
-        return NULL;
-    }
-    Pair *ret = append(fixed_eval, rest_eval_pair);
-    node_unref(fixed_eval);
-    node_unref(rest_eval);
-    return ret;
-}
-
-static Node *primitive_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
+static Node *primitive_apply(Node *_proc, Pair *args, Env *env) {
     Primitive *proc = (Primitive *)_proc;
-    Pair *flat_args = eval_args(args, vargs, env);
-    if (!flat_args) return NULL;
-    Node *ret = proc->apply(flat_args, env);
-    node_unref(flat_args);
-    return ret;
-}
-
-static Node *special_apply(Node *_proc, Pair *args, Node *vargs, Env *env) {
-    Primitive *proc = (Primitive *)_proc;
-    Pair *flat_args;
-    if (vargs) {
-        Pair *vargs_pair = pair_check(vargs);
-        if (!vargs_pair) return NULL;
-        flat_args = append(args, vargs_pair);
-    } else {
-        flat_args = args;
-        node_ref(flat_args);
-    }
-    Node *ret = proc->apply(flat_args, env);
-    node_unref(flat_args);
-    return ret;
+    return proc->apply(args, env);
 }
 
 static void primitive_print(Node *_n, Printer *p) {
@@ -516,8 +429,9 @@ static Type const primitive_type = {
 
 static Type const special_type = {
     .name = "special",
-    .apply = special_apply,
+    .apply = primitive_apply,
     .print = primitive_print,
+    .special = true,
 };
 
 static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
@@ -565,11 +479,8 @@ static Node *apply_cdr(Pair *args, Env *env) {
 }
 
 static Node *apply_symbol_query(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    Node *operand = eval(args->addr, env);
-    if (!operand) return NULL;
+    if (!is_null(args->dec)) return NULL;
     Node *ret = symbol_check(args->addr) ? true_node : false_node;
-    node_unref(operand);
     node_ref(ret);
     return ret;
 }
@@ -578,10 +489,9 @@ static Node *apply_plus(Pair *args, Env *env) {
     if (!args->addr) return NULL;
     long long ll = 0;
     for (; args->addr; args = args->dec) {
-        Int *opnd = eval_to_int(args->addr, env);
+        Int *opnd = int_check(args->addr);
         if (!opnd) return NULL;
         ll += opnd->ll;
-        node_unref(opnd);
     }
     return int_new(ll);
 }
@@ -630,13 +540,30 @@ static Node *apply_eq_query(Pair *args, Env *env) {
     return ret;
 }
 
+static Pair *flatten_vargs(Pair *args) {
+    if (is_null(args->dec)) {
+        Pair *pair = pair_check(args->addr);
+        if (!pair) return NULL;
+        node_ref(pair);
+        return pair;
+    }
+    Pair *dec = flatten_vargs(args->dec);
+    if (!dec) return NULL;
+    Node *addr = args->addr;
+    Pair *ret = pair_new();
+    ret->addr = addr;
+    ret->dec = dec;
+    node_ref(addr);
+    return ret;
+}
+
 // TODO test crash for (apply f)
 static Node *apply_apply(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
-    Node *proc = eval(args->addr, env);
-    if (!proc) return NULL;
-    Node *ret = node_apply(proc, nil_node, args->dec->addr, env);
-    node_unref(proc);
+    if (list_length(args) < 2) return NULL;
+    Pair *flat_args = flatten_vargs(args->dec);
+    if (!flat_args) return NULL;
+    Node *ret = node_apply(args->addr, flat_args, env);
+    node_unref(flat_args);
     return ret;
 }
 
@@ -681,7 +608,6 @@ static PrimitiveType special_forms[] = {
     {"if", apply_if},
     {"macro", macro_new},
     {"define", apply_define},
-    {"apply", apply_apply},
 };
 
 static PrimitiveType primitives[] = {
@@ -699,6 +625,7 @@ static PrimitiveType primitives[] = {
     {"eq?", apply_eq_query},
     {"=", apply_eq_query}, // TODO split =/ eqv? eq
     {"begin", apply_begin},
+    {"apply", apply_apply},
 };
 
 Env *top_env_new() {

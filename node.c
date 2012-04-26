@@ -37,11 +37,20 @@ void node_unref(Node *n) {
 }
 
 int node_truth(Node *node) {
-    if (!node->type->truth) return 1;
-    return node->type->truth(node);
+    return node != false_node;
 }
 
-Node *node_apply(Node *proc, Pair *args, Node *vargs, Env *env) {
-    if (!proc->type->apply) return NULL;
-    return proc->type->apply(proc, args, vargs, env);
+Node *node_apply(Node *proc, Pair *args, Env *env) {
+    if (!proc->type->apply) {
+        fprintf(stderr, "not applicable: ");
+        node_print_file(proc, stderr);
+        fputc('\n', stderr);
+        return NULL;
+    }
+    return proc->type->apply(proc, args, env);
 }
+
+bool node_special(Node *node) {
+    return node->type->special;
+}
+
