@@ -1,0 +1,6 @@
+(define (ackermann-peter m n)
+  (if (> m 0)
+    (if (> n 0)
+      (ackermann-peter (- m 1) (ackermann-peter m (- n 1)))
+      (ackermann-peter (- m 1) 1))
+    (+ n 1)))
