@@ -1,6 +1,6 @@
 #include "env.h"
 #include "meme.h"
-#include <glib.h>
+#include "glib.h"
 #include <string.h>
 
 static Type env_type;

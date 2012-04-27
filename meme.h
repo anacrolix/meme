@@ -10,7 +10,7 @@
 #include "quote.h"
 #include "symbol.h"
 #include "void.h"
-#include <glib.h>
+#include "glib.h"
 #include <stdlib.h>
 
 typedef struct Env Env;

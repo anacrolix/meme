@@ -1,5 +1,5 @@
 #include "meme.h"
-#include <glib.h>
+#include "glib.h"
 #include <assert.h>
 #include <string.h>
 
