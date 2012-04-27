@@ -12,6 +12,11 @@
 (define defined? __defined?)
 (define undef __undef)
 (define set! __set!)
+
+(define (or . tests)
+  (cond ((null? tests) #f)
+        ((car tests) (car tests))
+        (else (apply or (cdr tests)))))
 (define (not x) (if x #f #t))
 (define (/= . a) (not (apply = a)))
 (define (> a b) (< b a))
@@ -35,6 +40,15 @@
   (list 'begin
         (list 'if (list 'defined? sym) (list 'undef sym))
         (list 'define formals body)))
+
+; not sure if fold-left is supposed to reverse a given list
+(define (fold-left f z p)
+  (if (null? p) z (fold-left f (f (car p) z) (cdr p))))
+(define (fold-right f z p)
+  (if (null? p) z (f (car p) (fold-right f z (cdr p)))))
+(define (map-unary f p)
+  (fold-right (lambda (head tail) (cons (f head) tail)) '() p))
+
 
 (define (list-comp f lst)
   (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))

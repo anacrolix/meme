@@ -36,8 +36,10 @@ void node_unref(Node *n) {
     free(n);
 }
 
-int node_truth(Node *node) {
-    return node != false_node;
+NodeTruth node_truth(Node *node) {
+    if (node == false_node) return NODE_TRUTH_FALSE;
+    else if (node == void_node) return NODE_TRUTH_ERR;
+    else return NODE_TRUTH_TRUE;
 }
 
 Node *node_apply(Node *proc, Pair *args, Env *env) {

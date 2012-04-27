@@ -5,7 +5,7 @@
 
 GHashTable *all_nodes;
 
-static bool is_null(Pair *pair) {
+bool is_null(Pair *pair) {
     return pair == nil_node;
 }
 
@@ -271,7 +271,7 @@ void node_print_file(Node *node, FILE *file) {
     node_print(node, &(Printer){.file=file});
 }
 
-static NodeCmp node_compare(Node *left, Node *right) {
+NodeCmp node_compare(Node *left, Node *right) {
     if (left == right) return NODE_CMP_EQ;
     else if (left->type->compare) return left->type->compare(left, right);
     else if (right->type->compare) return invert_nodecmp(right->type->compare(right, left));
@@ -426,7 +426,15 @@ typedef Node *(*PrimitiveApplyFunc)(Pair *, Env *);
 
 static Node *primitive_apply(Node *_proc, Pair *args, Env *env) {
     Primitive *proc = (Primitive *)_proc;
-    return proc->apply(args, env);
+    Node *ret = proc->apply(args, env);
+    if (!ret) {
+        fprintf(stderr, "error applying ");
+        node_print_file(proc, stderr);
+        fprintf(stderr, " to ");
+        node_print_file(args, stderr);
+        fputc('\n', stderr);
+    }
+    return ret;
 }
 
 static void primitive_print(Node *_n, Printer *p) {

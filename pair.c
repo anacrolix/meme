@@ -46,11 +46,27 @@ static void pair_traverse(Node *_pair, VisitProc visit, void *data) {
     visit(pair->dec, data);
 }
 
+static NodeCmp pair_compare(Node *_left, Node *_right) {
+    assert(_left->type == &pair_type);
+    Pair *left = (Pair *)_left;
+    Pair *right = pair_check(_right);
+    if (!right) return NODE_CMP_NOIMPL;
+    for (;; left = left->dec, right = right->dec) {
+        if (is_null(left)) {
+           if (is_null(right)) return NODE_CMP_EQ;
+           else return NODE_CMP_LT;
+        } else if (is_null(right)) return NODE_CMP_GT; 
+        NodeCmp ret = node_compare(left->addr, right->addr);
+        if (ret != NODE_CMP_EQ) return ret;
+    }
+}
+
 Type const pair_type = {
     .name = "pair",
     .print = pair_print,
     .eval = pair_eval,
     .traverse = pair_traverse,
+    .compare = pair_compare,
 };
 
 static Pair nil_node_storage = {

@@ -32,4 +32,7 @@
 (undef a)
 
 ; map
-(map (lambda (x y) (* x y)) '(1 3 5) '(2 4 6))
+(if (/= '(2 12 30) (map (lambda (x y) (* x y)) '(1 3 5) '(2 4 6))) (error))
+
+; combinations
+(if (/= '((a b) (a c) (b c)) (combinations '(a b c) 2)) (error))
