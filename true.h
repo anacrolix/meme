@@ -2,5 +2,4 @@
 
 #include "types.h"
 
-Node *parse(Lexer *lexer);
-
+extern Node *true_node;

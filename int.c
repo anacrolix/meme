@@ -1,6 +1,9 @@
 #include "int.h"
-#include "meme.h"
+#include "node.h"
+#include "printer.h"
+#include "symbol.h"
 #include <assert.h>
+#include <stdlib.h>
 
 Int *int_check(Node *node) {
     return node->type == &int_type ? (Int *)node : NULL;
@@ -8,15 +11,13 @@ Int *int_check(Node *node) {
 
 Int *int_new(long long ll) {
     Int *ret = malloc(sizeof *ret);
-    node_init(ret, &int_type);
+    node_init(ret->node, &int_type);
     ret->ll = ll;
     return ret;
 }
 
 static void int_print(Node *n, Printer *p) {
-    if (p->just_atom) fputc(' ', p->file);
-    fprintf(p->file, "%lld", ((Int *)n)->ll);
-    p->just_atom = true;
+    print_atom(p, "%lld", ((Int *)n)->ll);
 }
 
 static NodeCmp int_compare(Node *_left, Node *_right) {
@@ -35,3 +36,6 @@ Type const int_type = {
     .compare = int_compare,
 };
 
+long long int_as_ll(Int *i) {
+    return i->ll;
+}

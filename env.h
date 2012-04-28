@@ -3,11 +3,11 @@
 #include "node.h"
 #include <stdbool.h>
 
-typedef struct Env {
-    Node;
+struct Env {
+    Node node[1];
     void *table; // stores the frame's variables
     Env *outer;
-} Env;
+};
 
 Env *env_new(Env *);
 bool env_set(Env *, char const *, Node *);

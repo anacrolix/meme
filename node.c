@@ -1,6 +1,7 @@
 #include "node.h"
 #include "meme.h"
 #include <assert.h>
+#include <stdlib.h>
 
 void node_print(Node *n, Printer *p) {
     assert(n->refs > 0);

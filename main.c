@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 static Node *run_file(FILE *file, Env *env, char const *name) {
     Lexer lexer = {
@@ -24,7 +25,7 @@ static Node *run_file(FILE *file, Env *env, char const *name) {
         collect_cycles();
         if (!result && !isatty(fileno(file))) break;
         if (result && !void_check(result)) {
-            node_print(result, &(Printer){.file=stdout});
+            node_print_file(result, stdout);
             putchar('\n');
         }
     }
@@ -54,7 +55,7 @@ int main(int argc, char **argv) {
         }
     }
     collect_cycles();
-    node_unref(env);
+    node_unref((Node *)env);
     int ret = !result;
     collect_cycles();
     if (result) node_unref(result);

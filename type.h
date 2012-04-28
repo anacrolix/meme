@@ -1,11 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
-
-typedef struct Node Node;
-typedef struct Env Env;
-typedef struct Printer Printer;
-typedef struct Pair Pair;
+#include "types.h"
 
 typedef enum {
     NODE_CMP_ERR,
@@ -28,7 +23,7 @@ typedef Node *(*EvalFunc)(Node *, Env *);
 typedef void (*VisitProc)(Node *, void *);
 typedef void (*TraverseProc)(Node *, VisitProc, void *);
 
-typedef struct Type {
+struct Type {
     char const *name;
     EvalFunc eval;
     TraverseProc traverse;
@@ -37,5 +32,5 @@ typedef struct Type {
     void (*print)(Node *, Printer *);
     CompareFunc compare;
     bool special;
-} Type;
+};
 

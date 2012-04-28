@@ -1,19 +1,22 @@
-#include "bool.h"
+#pragma once
+
 #include "env.h"
-#include "eval.h"
 #include "int.h"
-#include "lexer.h"
-#include "misc.h"
-#include "node.h"
 #include "pair.h"
-#include "parse.h"
 #include "quote.h"
 #include "symbol.h"
-#include "void.h"
+#include "true.h"
+#include "types.h"
 #include "glib.h"
-#include <stdlib.h>
+#include "false.h"
+#include "lexer.h"
+#include "node.h"
+#include "parse.h"
+#include "eval.h"
+#include "void.h"
+#include "printer.h"
+#include <stdio.h>
 
-typedef struct Env Env;
 Env *top_env_new();
 extern GHashTable *all_nodes;
 void meme_init();

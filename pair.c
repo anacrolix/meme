@@ -1,6 +1,7 @@
 #include "pair.h"
 #include "meme.h"
 #include <assert.h>
+#include <stdlib.h>
 
 Pair *pair_check(Node *node) {
     return node->type == &pair_type ? (Pair *)node : NULL;
@@ -9,12 +10,11 @@ Pair *pair_check(Node *node) {
 static void pair_print(Node *node, Printer *p) {
     assert(node->type == &pair_type);
     Pair const *pair = (Pair const *)node;
-    fputc('(', p->file);
-    p->just_atom = false;
+    print_token(p, START);
     for (; pair->addr; pair = pair->dec) {
         node_print(pair->addr, p);
     }
-    fputc(')', p->file);
+    print_token(p, END);
 }
 
 static Node *pair_eval(Node *_pair, Env *env) {
@@ -70,10 +70,10 @@ Type const pair_type = {
 };
 
 static Pair nil_node_storage = {
-    {
+    {{
         .refs = 1,
         .type = &pair_type,
-    },
+    }},
     .addr = NULL,
     .dec = NULL,
 };
@@ -84,4 +84,12 @@ Pair *pair_new() {
     Pair *pair = calloc(1, sizeof *pair);
     node_init(pair, &pair_type);
     return pair;
+}
+
+Pair *pair_dec(Pair *pair) {
+    return pair->dec;
+}
+
+Node *pair_addr(Pair *pair) {
+    return pair->addr;
 }

@@ -1,7 +1,9 @@
-typedef struct Quote {
-    Node;
+#pragma once
+
+struct Quote {
+    Node node[1];
     Node *quoted;
-} Quote;
+};
 
 extern Type const quote_type;
 

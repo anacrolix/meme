@@ -1,7 +1,9 @@
 #include "env.h"
-#include "meme.h"
 #include "glib.h"
+#include "printer.h"
+#include "type.h"
 #include <string.h>
+#include <stdlib.h>
 
 static Type env_type;
 
@@ -75,22 +77,24 @@ static void env_traverse(Node *_env, VisitProc visit, void *arg) {
         Node *node = _node;
         visit(node, arg);
     }
-    if (env->outer) visit(env->outer, arg);
+    if (env->outer) visit((Node *)env->outer, arg);
 }
 
 static void env_print(Node *_env, Printer *p) {
     Env *env = (Env *)_env;
-    fprintf(p->file, "; env {\n");
+    print_token(p, START);
+    print_atom(p, "#(%s", env_type.name);
     GHashTableIter iter;
     gpointer _key, _node;
     g_hash_table_iter_init(&iter, env->table);
     while (g_hash_table_iter_next(&iter, &_key, &_node)) {
         char const *key = _key;
-        fprintf(p->file, ";   %s ", key);
+        print_token(p, START);
+        print_atom(p, "%s", key);
         node_print(_node, p);
-        fputc('\n', p->file);
+        print_token(p, END);
     }
-    fprintf(p->file, "; }\n");
+    print_token(p, END);
 }
 
 static Type env_type = {
@@ -102,13 +106,13 @@ static Type env_type = {
 
 Env *env_new(Env *outer) {
     Env *ret = malloc(sizeof *ret);
-    node_init(ret, &env_type);
+    node_init(ret->node, &env_type);
     ret->table = g_hash_table_new_full(g_str_hash,
                                        g_str_equal,
                                        free,
                                        NULL),
     ret->outer = outer;
-    if (outer) node_ref(outer);
+    if (outer) node_ref(outer->node);
     return ret;
 }
 

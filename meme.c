@@ -1,7 +1,14 @@
 #include "meme.h"
 #include "glib.h"
+#include "pair.h"
+#include "int.h"
+#include "printer.h"
+#include "true.h"
+#include "false.h"
+#include "quote.h"
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 GHashTable *all_nodes;
 
@@ -12,11 +19,10 @@ bool is_null(Pair *pair) {
 static size_t list_length(Pair *list);
 
 static Node *apply_splat(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    if (!args->dec->addr) return NULL;
-    Int *opnd = int_check(args->addr);
+    if (list_length(args) < 2) return NULL;
+    Int *opnd = int_check(pair_addr(args));
     if (!opnd) return NULL;
-    long long ll = opnd->ll;
+    long long ll = int_as_ll(opnd);
     for (;;) {
         args = args->dec;
         if (!args->addr) break;
@@ -106,16 +112,16 @@ static void formals_print(Formals const *f, Printer *p) {
         node_print(f->rest, p);
         return;
     }
-    fputc('(', p->file);
+    print_token(p, START);
     Pair *args = f->fixed;
     for (; !is_null(args); args = args->dec) {
         node_print(args->addr, p);
     }
     if (f->rest) {
-        fprintf(p->file, " . ");
+        print_atom(p, ".");
         node_print(f->rest, p);
     }
-    fputc(')', p->file);
+    print_token(p, END);
 }
 
 static void traverse_formals(Formals *f, VisitProc visit, void *arg) {
@@ -124,7 +130,7 @@ static void traverse_formals(Formals *f, VisitProc visit, void *arg) {
 }
 
 typedef struct {
-    Node;
+    Node node[1];
     Node *body;
     Env *env;
     Formals formals[1];
@@ -139,10 +145,10 @@ static void closure_traverse(Node *_c, VisitProc visit, void *arg) {
 
 void closure_print(Node *_n, Printer *p) {
     Closure *n = (Closure *)_n;
-    fprintf(p->file, "#(lambda ");
+    print_atom(p, "#(%s", n->node->type->name);
     formals_print(n->formals, p);
     node_print(n->body, p);
-    fputs(")", p->file);
+    print_token(p, END);
 }
 
 static bool extend_environment(Formals *formals, Pair *args, Env *env) {
@@ -268,7 +274,10 @@ static NodeCmp invert_nodecmp(NodeCmp cmp) {
 }
 
 void node_print_file(Node *node, FILE *file) {
-    node_print(node, &(Printer){.file=file});
+    Printer p[1];
+    printer_init(p, file);
+    node_print(node, p);
+    printer_destroy(p);
 }
 
 NodeCmp node_compare(Node *left, Node *right) {
@@ -309,15 +318,14 @@ Node *is_pair(Pair *args, Env *env) {
     return ret;
 }
 
-void quote_print(Node *_quote, Printer *p) {
+static void quote_print(Node *_quote, Printer *p) {
     assert(_quote->type == &quote_type);
     Quote *quote = (Quote *)_quote;
-    fputc('\'', p->file);
-    p->just_atom = false;
+    print_token(p, QUOTE);
     node_print(quote->quoted, p);
 }
 
-Node *quote_eval(Node *_quote, Env *env) {
+static Node *quote_eval(Node *_quote, Env *env) {
     Quote *quote = (Quote *)_quote;
     Node *ret = quote->quoted;
     node_ref(ret);
@@ -337,7 +345,7 @@ Type const quote_type = {
 };
 
 typedef struct Macro {
-    Node;
+    Node node[1];
     Node *text;
 } Macro;
 
@@ -387,11 +395,9 @@ static Node *apply_list(Pair *args, Env *env) {
 static void macro_print(Node *_macro, Printer *p) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
-    fprintf(p->file, "(#macro ");
-    p->just_atom = false;
+    print_atom(p, "#(%s", macro_type.name);
     node_print(macro->text, p);
-    fputc(')', p->file);
-    p->just_atom = false;
+    print_token(p, END);
 }
 
 Type const macro_type = {
@@ -413,7 +419,7 @@ Node *macro_new(Pair *args, Env *env) {
 }
 
 typedef struct {
-    Node;
+    Node node[1];
     Node *(*apply)(Pair *args, Env *env);
     char const *name;
 } Primitive;
@@ -465,7 +471,7 @@ static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
 
 static Special *special_new(PrimitiveApplyFunc func, char const *name) {
     Special *ret = primitive_new(func, name);
-    ret->type = &special_type;
+    ret->node->type = &special_type;
     return ret;
 }
 
@@ -758,24 +764,6 @@ static GHashTable *get_reachable(GSList *roots) {
     return ret;
 }
 
-static void print_node_set(GHashTable *node_set) {
-    GHashTableIter iter;
-    g_hash_table_iter_init(&iter, node_set);
-    gpointer _node;
-    while (g_hash_table_iter_next(&iter, &_node, NULL)) {
-        node_print(_node, &(Printer){.file=stderr});
-        fputc('\n', stderr);
-    }
-}
-
-static void print_roots(GSList *roots) {
-    for (; roots; roots = roots->next) {
-        fprintf(stderr, "root node: ");
-        node_print(roots->data, &(Printer){.file=stderr});
-        fputc('\n', stderr);
-    }
-}
-
 static GHashTable *node_set_difference(GHashTable *minuend, GHashTable *subtrahend) {
     GHashTable *ret = g_hash_table_new(g_direct_hash, g_direct_equal);
     GHashTableIter iter;
@@ -822,7 +810,7 @@ void collect_cycles() {
 
 void meme_final() {
     collect_cycles();
-    if (nil_node->refs != 1) abort();
+    if (nil_node->node->refs != 1) abort();
     if (!g_hash_table_remove(all_nodes, nil_node)) abort();
     if (!g_hash_table_remove(all_nodes, true_node)) abort();
     if (!g_hash_table_remove(all_nodes, false_node)) abort();

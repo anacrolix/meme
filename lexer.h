@@ -1,3 +1,6 @@
+#pragma once
+
+#include "types.h"
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -10,17 +13,17 @@ typedef enum {
     QUOTE,
 } TokenType;
 
-typedef struct {
+struct Token {
     int line, col;
     TokenType type;
     char *value;
-} Token;
+};
 
-typedef struct Lexer {
+struct Lexer {
     FILE *file;
     char const *file_name;
     int line, col;
     Token token[1];
-} Lexer;
+};
 
 bool next_token(Lexer *lexer);

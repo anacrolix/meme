@@ -5,10 +5,10 @@
 
 extern Type const symbol_type;
 
-typedef struct Symbol {
-    Node;
+struct Symbol {
+    Node node[1];
     char *s;
-} Symbol;
+};
 
 Symbol *symbol_new(char const *s);
 char const *symbol_str(Symbol *);

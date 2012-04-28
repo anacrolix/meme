@@ -2,6 +2,7 @@
 #include "meme.h"
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 
 Pair *parse_list(Lexer *lexer) {
     Token *const t = lexer->token;

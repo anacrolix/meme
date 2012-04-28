@@ -2,6 +2,7 @@
 #include "meme.h"
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 char const *symbol_str(Symbol *symbol) {
     return symbol->s;
@@ -18,9 +19,7 @@ char const *symbol_get_name(Symbol *v) {
 }
 
 static void symbol_print(Node *n, Printer *p) {
-    if (p->just_atom) fputc(' ', p->file);
-    fputs(((Symbol *)n)->s, p->file);
-    p->just_atom = true;
+    print_atom(p, "%s", ((Symbol *)n)->s);
 }
 
 static void symbol_dealloc(Node *node) {
