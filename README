@@ -36,3 +36,10 @@ Make sure to set G_SLICE=always-malloc, and possibly G_DEBUG=gc-friendly in the 
  * Use GMP for numbers.
  * Reintroduce tail call optimization.
  * Possible optimization: reclaim empty envs if they're only referenced by other environments.
+ * Ref symbols instead of strdup'ing their contents as keys into environments
+ * Ditch hash tables in environments (except perhaps the top level one?)
+ * Use slice allocator for pairs, and possibly other types
+ * Eval lists onto the stack?
+ * Maintain the global list of nodes as a doubly linked list instead of a hash table
+ * Cut back on unneeded loop detections.
+ * Remove a lot of null checks by implementing "default" behaviours for all types.
