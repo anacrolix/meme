@@ -12,7 +12,6 @@
 #include "lexer.h"
 #include "node.h"
 #include "parse.h"
-#include "eval.h"
 #include "void.h"
 #include "printer.h"
 #include <stdio.h>

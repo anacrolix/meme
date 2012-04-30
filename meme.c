@@ -39,7 +39,7 @@ Node *apply_builtin_define(Pair *args, Env *env) {
     if (!var) return NULL;
     args = args->dec;
     if (!args->addr) return NULL;
-    Node *value = eval(args->addr, env);
+    Node *value = node_eval(args->addr, env);
     if (!value) return NULL;
     char const *key = symbol_str(var);
     // steals ref to value, copies key
@@ -181,7 +181,7 @@ static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
         node_unref(sub_env);
         return NULL;
     }
-    Node *ret = eval(proc->body, sub_env);
+    Node *ret = node_eval(proc->body, sub_env);
     node_unref(sub_env);
     return ret;
 }
@@ -227,17 +227,17 @@ Node *apply_if(Pair *args, Env *env) {
         alt = args->addr;
         if (!is_null(args->dec)) return NULL;
     }
-    Node *node = eval(test, env);
+    Node *node = node_eval(test, env);
     if (!node) return NULL;
     int truth = node_truth(node);
     node_unref(node);
     if (truth < 0) return NULL;
-    if (truth) return eval(conseq, env);
+    if (truth) return node_eval(conseq, env);
     if (!alt) {
         node_ref(void_node);
         return void_node;
     }
-    return eval(alt, env);
+    return node_eval(alt, env);
 }
 
 Node *subtract(Pair *args, Env *env) {
@@ -361,10 +361,12 @@ static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
     Macro *macro = (Macro *)_macro;
     Node *code = node_apply(macro->text, args, env);
     if (!code) return NULL;
+#if 0
     fprintf(stderr, "macro produced: ");
     node_print_file(code, stderr);
     fputc('\n', stderr);
-    Node *ret = eval(code, env);
+#endif
+    Node *ret = node_eval(code, env);
     node_unref(code);
     return ret;
 }
@@ -374,7 +376,7 @@ Pair *eval_list(Pair *args, Env *env) {
         node_ref(nil_node);
         return nil_node;
     }
-    Node *addr = eval(args->addr, env);
+    Node *addr = node_eval(args->addr, env);
     if (!addr) return NULL;
     Pair *dec = eval_list(args->dec, env);
     if (!dec) {
@@ -632,7 +634,7 @@ static Node *apply_set_bang(Pair *args, Env *env) {
     if (list_length(args) != 2) return NULL;
     Symbol *var = symbol_check(args->addr);
     if (!var) return NULL;
-    Node *value = eval(args->dec->addr, env);
+    Node *value = node_eval(args->dec->addr, env);
     if (!value) return NULL;
     if (!env_set(env, symbol_str(var), value)) {
         node_unref(value);

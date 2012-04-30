@@ -57,3 +57,28 @@ bool node_special(Node *node) {
     return node->type->special;
 }
 
+Node *node_eval(Node *node, Env *env) {
+    Node *ret;
+    if (node->type->eval) {
+        ret = node->type->eval(node, env);
+        if (!ret) {
+            fputs("error evaluating: ", stderr);
+            node_print_file(node, stderr);
+            fputc('\n', stderr);
+            return NULL;
+        }
+    } else {
+        ret = node;
+        node_ref(ret);
+    }
+#if 0
+    node_print_file(node, stderr);
+    if (ret != void_node) {
+        fprintf(stderr, " ===> ");
+        node_print_file(ret, stderr);
+    }
+    fputc('\n', stderr);
+#endif
+    return ret;
+}
+

@@ -19,7 +19,7 @@ static Node *run_file(FILE *file, Env *env, char const *name) {
         result = NULL;
         Node *node = parse(&lexer);
         if (!node) break;
-        result = eval(node, env);
+        result = node_eval(node, env);
         node_unref(node);
         // this is here to stress test the cycle collector
         collect_cycles();

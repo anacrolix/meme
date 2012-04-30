@@ -20,7 +20,7 @@ static void pair_print(Node *node, Printer *p) {
 static Node *pair_eval(Node *_pair, Env *env) {
     assert(_pair->type == &pair_type);
     Pair *pair = (Pair *)_pair;
-    Node *proc = eval(pair->addr, env);
+    Node *proc = node_eval(pair->addr, env);
     if (!proc) return NULL;
     Pair *args;
     if (node_special(proc)) {
@@ -81,7 +81,7 @@ static Pair nil_node_storage = {
 Pair *const nil_node = &nil_node_storage;
 
 Pair *pair_new() {
-    Pair *pair = calloc(1, sizeof *pair);
+    Pair *pair = malloc(sizeof *pair);
     node_init(pair, &pair_type);
     return pair;
 }
