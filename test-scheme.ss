@@ -36,3 +36,16 @@
 
 ; combinations
 (if (/= '((a b) (a c) (b c)) (combinations '(a b c) 2)) (error))
+
+; try
+(if (/= 6 
+        (let ((x 2) (y 3))
+          (* x y)))
+  (error))
+
+(if (/= 35
+        (let ((x 2) (y 3))
+          (let ((x 7)
+                (z (+ x y)))
+            (* z x))))
+  (error))

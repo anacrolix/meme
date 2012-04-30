@@ -22,6 +22,7 @@
 (define (> a b) (< b a))
 (define (caar x) (car (car x)))
 (define (cdar x) (cdr (car x)))
+(define (cadr x) (car (cdr x)))
 (define (append x y)
   (if (null? x) y (cons (car x) (append (cdr x) y))))
 (define (length x) (if (null? x) 0 (+ 1 (length (cdr x)))))
@@ -49,7 +50,11 @@
 (define (map-unary f p)
   (fold-right (lambda (head tail) (cons (f head) tail)) '() p))
 
-
+(defmacro (let bindings body1 . bodyn)
+  (cons 
+    (cons 'lambda (cons (map car bindings) (cons body1 bodyn)))
+    (map cadr bindings)))
+        
 (define (list-comp f lst)
   (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))
 (define (map f . is)
