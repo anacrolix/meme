@@ -4,3 +4,4 @@
       (ackermann-peter (- m 1) (ackermann-peter m (- n 1)))
       (ackermann-peter (- m 1) 1))
     (+ n 1)))
+(ackermann-peter 3 8)

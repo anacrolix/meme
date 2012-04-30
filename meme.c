@@ -10,7 +10,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-GHashTable *all_nodes;
+static Node all_nodes[1] = {
+    {
+        .next = all_nodes,
+        .prev = all_nodes,
+    },
+};
 
 bool is_null(Pair *pair) {
     return pair == nil_node;
@@ -699,12 +704,23 @@ Env *top_env_new() {
     return ret;
 }
 
+void link_node(Node *node) {
+    node->next = all_nodes->next;
+    node->prev = all_nodes;
+    all_nodes->next = node;
+    node->next->prev = node;
+}
+
+void unlink_node(Node *node) {
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
+}
+
 void meme_init() {
-    assert(!all_nodes);
-    all_nodes = g_hash_table_new(g_direct_hash, g_direct_equal);
-    g_hash_table_add(all_nodes, nil_node);
-    g_hash_table_add(all_nodes, true_node);
-    g_hash_table_add(all_nodes, false_node);
+    assert(all_nodes->next == all_nodes && all_nodes->prev == all_nodes);
+    link_node(nil_node);
+    link_node(true_node);
+    link_node(false_node);
 }
 
 static void inc_node_refs_in_table(Node *node, void *_table) {
@@ -717,20 +733,14 @@ static void inc_node_refs_in_table(Node *node, void *_table) {
 
 static GHashTable *get_internal_ref_counts() {
     GHashTable *ret = g_hash_table_new(g_direct_hash, g_direct_equal);
-    GHashTableIter iter;
-    gpointer _node;
-    g_hash_table_iter_init(&iter, all_nodes);
-    while (g_hash_table_iter_next(&iter, &_node, NULL)) {
-        g_hash_table_insert(ret, _node, GINT_TO_POINTER(0));
+    for (Node *node = all_nodes->next; node != all_nodes; node = node->next) {
+        assert(!g_hash_table_contains(ret, node));
+        g_hash_table_insert(ret, node, GINT_TO_POINTER(0));
     }
-    assert(g_hash_table_size(ret) == g_hash_table_size(all_nodes));
-    g_hash_table_iter_init(&iter, all_nodes);
-    while (g_hash_table_iter_next(&iter, &_node, NULL)) {
-        Node *node = _node;
+    for (Node *node = all_nodes->next; node != all_nodes; node = node->next) {
         if (!node->type->traverse) continue;
         node->type->traverse(node, inc_node_refs_in_table, ret);
     }
-    assert(g_hash_table_size(ret) == g_hash_table_size(all_nodes));
     return ret;
 }
 
@@ -791,7 +801,7 @@ static void collect_unreachable(GHashTable *unreachable) {
         Node *node = _node;
         if (node->type->traverse) node->type->traverse(node, unref_if_reachable, unreachable);
         if (node->type->dealloc) node->type->dealloc(node);
-        if (!g_hash_table_remove(all_nodes, _node)) abort();
+        unlink_node(node);
         free(_node);
     }
 }
@@ -800,7 +810,11 @@ void collect_cycles() {
     GSList *roots = get_root_nodes();
     //print_roots(roots);
     GHashTable *reachable = get_reachable(roots);
-    GHashTable *unreachable = node_set_difference(all_nodes, reachable);
+    GHashTable *unreachable = g_hash_table_new(g_direct_hash, g_direct_equal);
+    for (Node *node = all_nodes->next; node != all_nodes; node = node->next) {
+        if (g_hash_table_contains(reachable, node)) continue;
+        g_hash_table_add(unreachable, node);
+    }
     //fprintf(stderr, "*** UNREACHABLE ***\n");
     //print_node_set(unreachable);
     //fprintf(stderr, "*** /UNREACHABLE ***\n");
@@ -813,10 +827,8 @@ void collect_cycles() {
 void meme_final() {
     collect_cycles();
     if (nil_node->node->refs != 1) abort();
-    if (!g_hash_table_remove(all_nodes, nil_node)) abort();
-    if (!g_hash_table_remove(all_nodes, true_node)) abort();
-    if (!g_hash_table_remove(all_nodes, false_node)) abort();
-    if (g_hash_table_size(all_nodes)) abort();
-    g_hash_table_destroy(all_nodes);
-    all_nodes = NULL;
+    unlink_node(nil_node);
+    unlink_node(true_node);
+    unlink_node(false_node);
+    assert(all_nodes->next == all_nodes && all_nodes->prev == all_nodes);
 }

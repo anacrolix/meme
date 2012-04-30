@@ -4,6 +4,7 @@
 #include "type.h"
 
 struct Node {
+    Node *prev, *next;
     int refs;
     Type const *type;
 };

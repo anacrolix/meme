@@ -17,7 +17,8 @@
 #include <stdio.h>
 
 Env *top_env_new();
-extern GHashTable *all_nodes;
+void link_node(Node *);
+void unlink_node(Node *);
 void meme_init();
 void meme_final();
 void collect_cycles();

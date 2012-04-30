@@ -13,8 +13,7 @@ void node_init(Node *n, Type const *t) {
         .refs = 1,
         .type = t,
     };
-    assert(!g_hash_table_contains(all_nodes, n));
-    g_hash_table_add(all_nodes, n);
+    link_node(n);
 }
 
 void node_ref(Node *n) {
@@ -33,7 +32,7 @@ void node_unref(Node *n) {
         n->type->traverse(n, node_free_visit, NULL);
     }
     if (n->type->dealloc) n->type->dealloc(n);
-    if (!g_hash_table_remove(all_nodes, n)) assert(false);
+    unlink_node(n);
     free(n);
 }
 
