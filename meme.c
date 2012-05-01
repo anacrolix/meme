@@ -41,12 +41,12 @@ Node *apply_builtin_define(Node *const args[], int count, Env *env) {
     if (!var) return NULL;
     Node *value = node_eval(args[1], env);
     if (!value) return NULL;
-    char const *key = symbol_str(var);
     // steals ref to value, copies key
-    if (!env_define(env, key, value)) {
+    if (!env_define(env, var, value)) {
         node_unref(value);
         return NULL;
     }
+    node_ref(var);
     node_ref(void_node);
     return void_node;
 }
@@ -169,12 +169,17 @@ static bool extend_environment(Formals *formals, Node *const *args, int count, E
     Pair *fixed = formals->fixed;
     for (; count && fixed->addr; fixed = fixed->dec, args++, count--) {
         // not all fixed arguments were given
-        if (!env_define(env, symbol_str((Symbol *)fixed->addr), *args)) return false;
+        if (!env_define(env, (Symbol *)fixed->addr, *args)) return false;
+        node_ref(fixed->addr);
         node_ref(*args);
     }
     if (formals->rest) {
         Pair *tail = node_array_to_list(args, count);
-        if (!env_define(env, symbol_str(formals->rest), tail)) return false;
+        if (!env_define(env, formals->rest, tail)) {
+            node_unref(tail);
+            return false;
+        }
+        node_ref(formals->rest);
     } else if (count) {
         fprintf(stderr, "too many arguments\n");
         return false;
@@ -610,7 +615,7 @@ static Node *apply_defined_query(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
     Symbol *var = symbol_check(*args);
     if (!var) return NULL;
-    Node *ret = env_is_defined(env, symbol_str(var)) ? true_node : false_node;
+    Node *ret = env_is_defined(env, var) ? true_node : false_node;
     node_ref(ret);
     return ret;
 }
@@ -629,7 +634,7 @@ static Node *apply_undef(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
     Symbol *sym = symbol_check(*args);
     if (!sym) return NULL;
-    if (!env_undefine(env, symbol_str(sym))) return NULL;
+    if (!env_undefine(env, sym)) return NULL;
     node_ref(void_node);
     return void_node;
 }
@@ -640,10 +645,11 @@ static Node *apply_set_bang(Node *const args[], int count, Env *env) {
     if (!var) return NULL;
     Node *value = node_eval(args[1], env);
     if (!value) return NULL;
-    if (!env_set(env, symbol_str(var), value)) {
+    if (!env_set(env, var, value)) {
         node_unref(value);
         return NULL;
     }
+    node_ref(var);
     node_ref(void_node);
     return void_node;
 }
@@ -687,7 +693,7 @@ Env *top_env_new() {
     PrimitiveType *prim = special_forms;
     size_t count = sizeof special_forms / sizeof *special_forms;
     for (; count; prim++, count--) {
-        if (!env_define(ret, prim->name, special_new(prim->apply, prim->name))) {
+        if (!env_define(ret, symbol_new(prim->name), special_new(prim->apply, prim->name))) {
             node_unref(ret);
             return NULL;
         }
@@ -695,7 +701,7 @@ Env *top_env_new() {
     prim = primitives;
     count = sizeof primitives / sizeof *primitives;
     for (; count; prim++, count--) {
-        if (!env_define(ret, prim->name, primitive_new(prim->apply, prim->name))) {
+        if (!env_define(ret, symbol_new(prim->name), primitive_new(prim->apply, prim->name))) {
             node_unref(ret);
             return NULL;
         }

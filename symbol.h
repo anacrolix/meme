@@ -11,5 +11,5 @@ struct Symbol {
 };
 
 Symbol *symbol_new(char const *s);
-char const *symbol_str(Symbol *);
+char const *symbol_str(Symbol const *);
 Symbol *symbol_check(Node *);

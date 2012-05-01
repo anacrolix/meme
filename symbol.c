@@ -4,18 +4,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-char const *symbol_str(Symbol *symbol) {
+char const *symbol_str(Symbol const *symbol) {
     return symbol->s;
 }
 
 Node *symbol_eval(Node *node, Env *env) {
     assert(node->type == &symbol_type);
     Symbol *symbol = (Symbol *)node;
-    return env_find(env, symbol->s);
-}
-
-char const *symbol_get_name(Symbol *v) {
-    return v->s;
+    return env_find(env, symbol);
 }
 
 static void symbol_print(Node *n, Printer *p) {
