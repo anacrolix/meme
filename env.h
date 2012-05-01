@@ -1,11 +1,12 @@
 #pragma once
 
 #include "node.h"
+#include "symtab.h"
 #include <stdbool.h>
 
 struct Env {
     Node;
-    void *table; // stores the frame's variables
+    SymTab *symtab;
     Env *outer;
 };
 
