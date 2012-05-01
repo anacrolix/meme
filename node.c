@@ -33,7 +33,7 @@ void node_unref(Node *n) {
     }
     if (n->type->dealloc) n->type->dealloc(n);
     unlink_node(n);
-    free(n);
+    free_node(n);
 }
 
 NodeTruth node_truth(Node *node) {
@@ -42,14 +42,14 @@ NodeTruth node_truth(Node *node) {
     else return NODE_TRUTH_TRUE;
 }
 
-Node *node_apply(Node *proc, Pair *args, Env *env) {
+Node *node_apply(Node *proc, Node *const args[], int count, Env *env) {
     if (!proc->type->apply) {
         fprintf(stderr, "not applicable: ");
         node_print_file(proc, stderr);
         fputc('\n', stderr);
         return NULL;
     }
-    return proc->type->apply(proc, args, env);
+    return proc->type->apply(proc, args, count, env);
 }
 
 bool node_special(Node *node) {
@@ -81,3 +81,11 @@ Node *node_eval(Node *node, Env *env) {
     return ret;
 }
 
+void free_node(Node *node) {
+#ifdef SLICE_NODES
+    if (node->type->free) node->type->free(node);
+    else free(node);
+#else
+    free(node);
+#endif
+}

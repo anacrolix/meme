@@ -11,7 +11,7 @@ Int *int_check(Node *node) {
 
 Int *int_new(long long ll) {
     Int *ret = malloc(sizeof *ret);
-    node_init(ret->node, &int_type);
+    node_init(ret, &int_type);
     ret->ll = ll;
     return ret;
 }
@@ -30,10 +30,16 @@ static NodeCmp int_compare(Node *_left, Node *_right) {
     else return NODE_CMP_EQ;
 }
 
+static Node *int_eval(Node *node, Env *env) {
+    node_ref(node);
+    return node;
+}
+
 Type const int_type = {
     .name = "int",
     .print = int_print,
     .compare = int_compare,
+    .eval = int_eval,
 };
 
 long long int_as_ll(Int *i) {

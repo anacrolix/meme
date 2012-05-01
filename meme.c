@@ -21,30 +21,25 @@ bool is_null(Pair *pair) {
     return pair == nil_node;
 }
 
-static size_t list_length(Pair *list);
-
-static Node *apply_splat(Pair *args, Env *env) {
-    if (list_length(args) < 2) return NULL;
-    Int *opnd = int_check(pair_addr(args));
+static Node *apply_splat(Node *const args[], int count, Env *env) {
+    if (count < 2) return NULL;
+    Int *opnd = int_check(args[0]);
     if (!opnd) return NULL;
     long long ll = int_as_ll(opnd);
     for (;;) {
-        args = args->dec;
-        if (!args->addr) break;
-        opnd = int_check(args->addr);
+        if (!--count) break;
+        opnd = int_check(*++args);
         if (!opnd) return NULL;
         ll *= opnd->ll;
     }
     return int_new(ll);
 }
 
-Node *apply_builtin_define(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    Symbol *var = symbol_check(args->addr);
+Node *apply_builtin_define(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
+    Symbol *var = symbol_check(args[0]);
     if (!var) return NULL;
-    args = args->dec;
-    if (!args->addr) return NULL;
-    Node *value = node_eval(args->addr, env);
+    Node *value = node_eval(args[1], env);
     if (!value) return NULL;
     char const *key = symbol_str(var);
     // steals ref to value, copies key
@@ -135,7 +130,7 @@ static void traverse_formals(Formals *f, VisitProc visit, void *arg) {
 }
 
 typedef struct {
-    Node node[1];
+    Node;
     Node *body;
     Env *env;
     Formals formals[1];
@@ -150,38 +145,62 @@ static void closure_traverse(Node *_c, VisitProc visit, void *arg) {
 
 void closure_print(Node *_n, Printer *p) {
     Closure *n = (Closure *)_n;
-    print_atom(p, "#(%s", n->node->type->name);
+    print_atom(p, "#(%s", n->type->name);
     formals_print(n->formals, p);
     node_print(n->body, p);
     print_token(p, END);
 }
 
-static bool extend_environment(Formals *formals, Pair *args, Env *env) {
+static Pair *node_array_to_list(Node *const *nodes, int count) {
+    if (!count) {
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Node *addr = *nodes;
+    Pair *dec = node_array_to_list(nodes + 1, count - 1);
+    Pair *ret = pair_new();
+    ret->addr = addr;
+    ret->dec = dec; 
+    node_ref(addr);
+    return ret;
+}
+
+static bool extend_environment(Formals *formals, Node *const *args, int count, Env *env) {
     Pair *fixed = formals->fixed;
-    for (; fixed->addr; fixed = fixed->dec, args = args->dec) {
+    for (; count && fixed->addr; fixed = fixed->dec, args++, count--) {
         // not all fixed arguments were given
-        if (!args->addr) return false;
-        if (!env_define(env, symbol_str((Symbol *)fixed->addr), args->addr)) return false;
-        node_ref(args->addr);
+        if (!env_define(env, symbol_str((Symbol *)fixed->addr), *args)) return false;
+        node_ref(*args);
     }
     if (formals->rest) {
-        if (!env_define(env, symbol_str(formals->rest), args)) return false;
-        node_ref(args);
-    } else if (args->addr) {
+        Pair *tail = node_array_to_list(args, count);
+        if (!env_define(env, symbol_str(formals->rest), tail)) return false;
+    } else if (count) {
         fprintf(stderr, "too many arguments\n");
         return false;
     }
     return true;
 }
 
-static Node *closure_apply(Node *_proc, Pair *args, Env *env) {
+void print_node_array_to_file(Node *const *nodes, int count, FILE *file) {
+    Printer p[1];
+    printer_init(p, file);
+    print_token(p, START);
+    for (; count; nodes++, count--) {
+        node_print(*nodes, p);
+    }
+    print_token(p, END);
+    printer_destroy(p);
+}
+
+static Node *closure_apply(Node *_proc, Node *const *args, int argc, Env *env) {
     Closure *proc = (Closure *)_proc;
     Env *sub_env = env_new(proc->env);
-    if (!extend_environment(proc->formals, args, sub_env)) {
+    if (!extend_environment(proc->formals, args, argc, sub_env)) {
         fprintf(stderr, "error extending environment\n  procedure: ");
         node_print_file(proc, stderr);
         fprintf(stderr, "\n  arguments: ");
-        node_print_file(args, stderr);
+        print_node_array_to_file(args, argc, stderr);
         fputc('\n', stderr);
         node_unref(sub_env);
         return NULL;
@@ -211,49 +230,38 @@ static Closure *closure_new(Node *vars, Node *body, Env *env) {
     return ret;
 }
 
-static Node *apply_lambda(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    Node *body = args->dec->addr;
-    if (!body) return NULL;
-    if (args->dec->dec->addr) return NULL;
-    return closure_new(args->addr, body, env);
+static Node *apply_lambda(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
+    return closure_new(args[0], args[1], env);
 }
 
-Node *apply_if(Pair *args, Env *env) {
-    Node *test = args->addr;
-    if (!test) return NULL;
-    args = args->dec;
-    Node *conseq = args->addr;
-    if (!conseq) return NULL;
-    args = args->dec;
+Node *apply_if(Node *const args[], int count, Env *env) {
     Node *alt;
-    if (is_null(args)) alt = NULL;
-    else {
-        alt = args->addr;
-        if (!is_null(args->dec)) return NULL;
-    }
+    if (count == 3) alt = args[2];
+    else if (count == 2) alt = NULL;
+    else return NULL;
+    Node *test = args[0];
+    Node *conseq = args[1];
     Node *node = node_eval(test, env);
     if (!node) return NULL;
     int truth = node_truth(node);
     node_unref(node);
     if (truth < 0) return NULL;
     if (truth) return node_eval(conseq, env);
-    if (!alt) {
-        node_ref(void_node);
-        return void_node;
-    }
-    return node_eval(alt, env);
+    if (alt) return node_eval(alt, env);
+    node_ref(void_node);
+    return void_node;
 }
 
-Node *subtract(Pair *args, Env *env) {
-    if (is_null(args)) return NULL;
-    Int *operand = int_check(args->addr);
+Node *subtract(Node *const args[], int count, Env *env) {
+    if (count == 0) return NULL;
+    Int *operand = int_check(args[0]);
     if (!operand) return NULL;
-    args = args->dec;
-    if (is_null(args)) return int_new(-operand->ll);
+    if (count == 1) return int_new(-operand->ll);
     Int *ret = int_new(operand->ll);
-    for (; args->addr; args = args->dec) {
-        operand = int_check(args->addr);
+    args++; count--;
+    for (; count; args++, count--) {
+        operand = int_check(*args);
         if (!operand) {
             node_unref(ret);
             return NULL;
@@ -274,7 +282,7 @@ static NodeCmp invert_nodecmp(NodeCmp cmp) {
     case NODE_CMP_GT:
         return NODE_CMP_LT;
     default:
-        assert(false);
+        abort();
     }
 }
 
@@ -292,10 +300,10 @@ NodeCmp node_compare(Node *left, Node *right) {
     else return NODE_CMP_NE;
 }
 
-Node *less_than(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
-    Node *left = args->addr;
-    Node *right = args->dec->addr;
+Node *less_than(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
+    Node *left = args[0];
+    Node *right = args[1];
     Node *ret;
     switch (node_compare(left, right)) {
     case NODE_CMP_ERR:
@@ -316,9 +324,9 @@ Node *less_than(Pair *args, Env *env) {
     return ret;
 }
 
-Node *is_pair(Pair *args, Env *env) {
-    if (is_null(args) || !is_null(args->dec)) return NULL;
-    Node *ret = pair_check(args->addr) ? true_node : false_node;
+Node *is_pair(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Node *ret = pair_check(*args) ? true_node : false_node;
     node_ref(ret);
     return ret;
 }
@@ -350,7 +358,7 @@ Type const quote_type = {
 };
 
 typedef struct Macro {
-    Node node[1];
+    Node;
     Node *text;
 } Macro;
 
@@ -361,10 +369,10 @@ static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     visit(macro->text, arg);
 }
 
-static Node *macro_apply(Node *_macro, Pair *args, Env *env) {
+static Node *macro_apply(Node *_macro, Node *const args[], int argc, Env *env) {
     assert(_macro->type == &macro_type);
     Macro *macro = (Macro *)_macro;
-    Node *code = node_apply(macro->text, args, env);
+    Node *code = node_apply(macro->text, args, argc, env);
     if (!code) return NULL;
 #if 0
     fprintf(stderr, "macro produced: ");
@@ -394,9 +402,8 @@ Pair *eval_list(Pair *args, Env *env) {
     return ret;
 }
 
-static Node *apply_list(Pair *args, Env *env) {
-    node_ref(args);
-    return args;
+static Node *apply_list(Node *const args[], int count, Env *env) {
+    return node_array_to_list(args, count);
 }
 
 static void macro_print(Node *_macro, Printer *p) {
@@ -415,19 +422,18 @@ Type const macro_type = {
     .special = true,
 };
 
-Node *macro_new(Pair *args, Env *env) {
-    if (is_null(args)) return NULL;
-    if (!is_null(args->dec)) return NULL;
+Node *macro_new(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
     Macro *ret = malloc(sizeof *ret);
     node_init(ret, &macro_type);
-    ret->text = args->addr;
+    ret->text = *args;
     node_ref(ret->text);
     return ret;
 }
 
 typedef struct {
-    Node node[1];
-    Node *(*apply)(Pair *args, Env *env);
+    Node;
+    Node *(*apply)(Node *const [], int, Env *);
     char const *name;
 } Primitive;
 
@@ -435,16 +441,16 @@ typedef Primitive Special;
 
 static Type const primitive_type;
 
-typedef Node *(*PrimitiveApplyFunc)(Pair *, Env *);
+typedef Node *(*PrimitiveApplyFunc)(Node *const [], int, Env *);
 
-static Node *primitive_apply(Node *_proc, Pair *args, Env *env) {
+static Node *primitive_apply(Node *_proc, Node *const args[], int count, Env *env) {
     Primitive *proc = (Primitive *)_proc;
-    Node *ret = proc->apply(args, env);
+    Node *ret = proc->apply(args, count, env);
     if (!ret) {
         fprintf(stderr, "error applying ");
         node_print_file(proc, stderr);
         fprintf(stderr, " to ");
-        node_print_file(args, stderr);
+        print_node_array_to_file(args, count, stderr);
         fputc('\n', stderr);
     }
     return ret;
@@ -478,21 +484,16 @@ static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
 
 static Special *special_new(PrimitiveApplyFunc func, char const *name) {
     Special *ret = primitive_new(func, name);
-    ret->node->type = &special_type;
+    ret->type = &special_type;
     return ret;
 }
 
-static Node *apply_car(Pair *args, Env *env) {
-    // 0 args
-    if (!args->addr) return NULL;
-    // more than 1 arg
-    if (args->dec->addr) return NULL;
-    Node *node = args->addr;
-    // argument is not a pair
-    Pair *pair = pair_check(node);
+static Node *apply_car(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Pair *pair = pair_check(*args);
     if (!pair) {
         fprintf(stderr, "expected a pair: ");
-        node_print_file(node, stderr);
+        node_print_file(*args, stderr);
         fputc('\n', stderr);
         return NULL;
     }
@@ -502,65 +503,58 @@ static Node *apply_car(Pair *args, Env *env) {
     return ret;
 }
 
-static Node *apply_cdr(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
-    if (args->dec->addr) return NULL;
-    Pair *pair = pair_check(args->addr);
+static Node *apply_cdr(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Pair *pair = pair_check(*args);
     if (!pair || pair == nil_node) return NULL;
     Pair *ret = pair->dec;
     node_ref(ret);
     return ret;
 }
 
-static Node *apply_symbol_query(Pair *args, Env *env) {
-    if (!is_null(args->dec)) return NULL;
-    Node *ret = symbol_check(args->addr) ? true_node : false_node;
+static Node *apply_symbol_query(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Node *ret = symbol_check(*args) ? true_node : false_node;
     node_ref(ret);
     return ret;
 }
 
-static Node *apply_plus(Pair *args, Env *env) {
-    if (!args->addr) return NULL;
+static Node *apply_plus(Node *const args[], int count, Env *env) {
+    if (count < 1) return NULL;
     long long ll = 0;
-    for (; args->addr; args = args->dec) {
-        Int *opnd = int_check(args->addr);
+    for (; count; args++, count--) {
+        Int *opnd = int_check(*args);
         if (!opnd) return NULL;
         ll += opnd->ll;
     }
     return int_new(ll);
 }
 
-static Node *apply_null_query(Pair *args, Env *env) {
-    if (!args->addr || args->dec->addr) return NULL;
-    Pair *pair = pair_check(args->addr);
+static Node *apply_null_query(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Pair *pair = pair_check(*args);
     if (!pair) return NULL;
     Node *ret = pair->addr ? false_node : true_node;
     node_ref(ret);
     return ret;
 }
 
-static size_t list_length(Pair *list) {
-    size_t ret = 0;
-    for (; list->addr; ret++, list = list->dec);
-    return ret;
-}
-
-static Node *apply_cons(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
-    Pair *dec = pair_check(args->dec->addr);
+static Node *apply_cons(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
+    Pair *dec = pair_check(args[1]);
     if (!dec) return NULL;
     Pair *ret = pair_new();
-    ret->addr = args->addr;
-    node_ref(ret->addr);
+    ret->addr = args[0];
+    node_ref(args[0]);
     ret->dec = dec;
     node_ref(ret->dec);
     return ret;
 }
 
-static Node *apply_eq_query(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
+static Node *apply_eq_query(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
     Node *ret;
-    switch (node_compare(args->addr, args->dec->addr)) {
+    switch (node_compare(args[0], args[1])) {
     case NODE_CMP_ERR:
         ret = NULL;
         break;
@@ -592,54 +586,59 @@ static Pair *flatten_vargs(Pair *args) {
 }
 
 // TODO test crash for (apply f)
-static Node *apply_apply(Pair *args, Env *env) {
-    if (list_length(args) < 2) return NULL;
-    Pair *flat_args = flatten_vargs(args->dec);
-    if (!flat_args) return NULL;
-    Node *ret = node_apply(args->addr, flat_args, env);
-    node_unref(flat_args);
-    return ret;
+static Node *apply_apply(Node *const args[const], int count, Env *env) {
+    if (count < 2) return NULL;
+    Pair *argn = pair_check(args[count-1]);
+    if (!argn) return NULL;
+    int argc1 = count - 2 + list_length(argn);
+    Node *args1[argc1];
+    memcpy(args1, args + 1, sizeof *args * (count - 2));
+    Node **dest = args1 + count - 2;
+    for (; !is_null(argn); argn = pair_dec(argn)) {
+        *dest++ = argn->addr;
+    }
+    return node_apply(*args, args1, argc1, env);
 }
 
-static Node *apply_begin(Pair *args, Env *env) {
-    for (; !is_null(args->dec); args = args->dec);
-    node_ref(args->addr);
-    return args->addr;
+static Node *apply_begin(Node *const args[], int count, Env *env) {
+    if (count < 1) return NULL;
+    node_ref(args[count-1]);
+    return args[count-1];
 }
 
-static Node *apply_defined_query(Pair *args, Env *env) {
-    if (list_length(args) != 1) return NULL;
-    Symbol *var = symbol_check(args->addr);
+static Node *apply_defined_query(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Symbol *var = symbol_check(*args);
     if (!var) return NULL;
     Node *ret = env_is_defined(env, symbol_str(var)) ? true_node : false_node;
     node_ref(ret);
     return ret;
 }
 
-static Node *apply_quote(Pair *args, Env *env) {
-    if (list_length(args) != 1) return NULL;
+static Node *apply_quote(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
     Quote *quote = malloc(sizeof *quote);
     node_init(quote, &quote_type);
-    quote->quoted = args->addr;
+    quote->quoted = *args;
     node_ref(quote->quoted);
     return quote;
 }
 
 
-static Node *apply_undef(Pair *args, Env *env) {
-    if (list_length(args) != 1) return NULL;
-    Symbol *sym = symbol_check(args->addr);
+static Node *apply_undef(Node *const args[], int count, Env *env) {
+    if (count != 1) return NULL;
+    Symbol *sym = symbol_check(*args);
     if (!sym) return NULL;
     if (!env_undefine(env, symbol_str(sym))) return NULL;
     node_ref(void_node);
     return void_node;
 }
 
-static Node *apply_set_bang(Pair *args, Env *env) {
-    if (list_length(args) != 2) return NULL;
-    Symbol *var = symbol_check(args->addr);
+static Node *apply_set_bang(Node *const args[], int count, Env *env) {
+    if (count != 2) return NULL;
+    Symbol *var = symbol_check(args[0]);
     if (!var) return NULL;
-    Node *value = node_eval(args->dec->addr, env);
+    Node *value = node_eval(args[1], env);
     if (!value) return NULL;
     if (!env_set(env, symbol_str(var), value)) {
         node_unref(value);
@@ -802,7 +801,7 @@ static void collect_unreachable(GHashTable *unreachable) {
         if (node->type->traverse) node->type->traverse(node, unref_if_reachable, unreachable);
         if (node->type->dealloc) node->type->dealloc(node);
         unlink_node(node);
-        free(_node);
+        free_node(_node);
     }
 }
 
@@ -826,7 +825,7 @@ void collect_cycles() {
 
 void meme_final() {
     collect_cycles();
-    if (nil_node->node->refs != 1) abort();
+    if (nil_node->refs != 1) abort();
     unlink_node(nil_node);
     unlink_node(true_node);
     unlink_node(false_node);

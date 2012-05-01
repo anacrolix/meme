@@ -6,7 +6,7 @@
 extern Type const symbol_type;
 
 struct Symbol {
-    Node node[1];
+    Node;
     char *s;
 };
 

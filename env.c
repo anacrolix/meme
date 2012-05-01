@@ -106,13 +106,13 @@ static Type env_type = {
 
 Env *env_new(Env *outer) {
     Env *ret = malloc(sizeof *ret);
-    node_init(ret->node, &env_type);
+    node_init(ret, &env_type);
     ret->table = g_hash_table_new_full(g_str_hash,
                                        g_str_equal,
                                        free,
                                        NULL),
     ret->outer = outer;
-    if (outer) node_ref(outer->node);
+    if (outer) node_ref(outer);
     return ret;
 }
 

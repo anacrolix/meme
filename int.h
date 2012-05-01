@@ -4,7 +4,7 @@
 #include "node.h"
 
 struct Int {
-    Node node[1];
+    Node;
     long long ll;
 };
 

@@ -1,9 +1,10 @@
 #pragma once
 
 #include "node.h"
+#include <stdlib.h>
 
 struct Pair {
-    Node node[1];
+    Node;
     Node *addr;
     Pair *dec;
 };
@@ -15,3 +16,6 @@ Pair *pair_new();
 Pair *pair_check(Node *);
 Pair *pair_dec(Pair *);
 Node *pair_addr(Pair *);
+
+size_t list_length(Pair *);
+

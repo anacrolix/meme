@@ -1,7 +1,7 @@
 #pragma once
 
 struct Quote {
-    Node node[1];
+    Node;
     Node *quoted;
 };
 

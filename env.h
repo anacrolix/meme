@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 struct Env {
-    Node node[1];
+    Node;
     void *table; // stores the frame's variables
     Env *outer;
 };
