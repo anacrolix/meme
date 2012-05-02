@@ -99,12 +99,12 @@ static Type env_type = {
     .print = env_print,
 };
 
-#include "ghash_symtab.h"
+#include "gtree_symtab.h"
 
 Env *env_new(Env *outer) {
     Env *ret = malloc(sizeof *ret);
     node_init(ret, &env_type);
-    ret->symtab = ghash_symtab_new();
+    ret->symtab = gtree_symtab_new();
     ret->outer = outer;
     if (outer) node_ref(outer);
     return ret;
