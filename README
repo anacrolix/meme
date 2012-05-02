@@ -40,3 +40,4 @@ Make sure to set G_SLICE=always-malloc, and possibly G_DEBUG=gc-friendly in the 
  * Use slice allocator for pairs, and possibly other types
  * Cut back on unneeded loop detections.
  * Remove a lot of null checks by implementing "default" behaviours for all types.
+ * Find out why slicing isn't as fast as raw malloc.

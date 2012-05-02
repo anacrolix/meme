@@ -1,5 +1,6 @@
 #include "pair.h"
 #include "meme.h"
+#include "glib.h"
 #include <assert.h>
 #include <stdlib.h>
 
