@@ -85,11 +85,8 @@ static Pair *parse_formals(Pair *vars, Symbol **rest) {
     }
     Pair *dec = parse_formals(vars->dec, rest);
     if (!dec) return NULL;
-    Pair *pair = pair_new();
-    pair->addr = addr;
     node_ref(addr);
-    pair->dec = dec;
-    return pair;
+    return pair_new(addr, dec);
 }
 
 static bool formals_init(Formals *f, Node *node) {
@@ -158,11 +155,8 @@ static Pair *node_array_to_list(Node *const *nodes, int count) {
     }
     Node *addr = *nodes;
     Pair *dec = node_array_to_list(nodes + 1, count - 1);
-    Pair *ret = pair_new();
-    ret->addr = addr;
-    ret->dec = dec; 
     node_ref(addr);
-    return ret;
+    return pair_new(addr, dec);
 }
 
 static bool extend_environment(Formals *formals, Node *const *args, int count, Env *env) {
@@ -220,6 +214,7 @@ Type const closure_type = {
     .apply = closure_apply,
     .print = closure_print,
     .traverse = closure_traverse,
+    .eval = node_eval_self,
 };
 
 static Closure *closure_new(Node *vars, Node *body, Env *env) {
@@ -401,10 +396,7 @@ Pair *eval_list(Pair *args, Env *env) {
         node_unref(addr);
         return NULL;
     }
-    Pair *ret = pair_new();
-    ret->addr = addr;
-    ret->dec = dec;
-    return ret;
+    return pair_new(addr, dec);
 }
 
 static Node *apply_list(Node *const args[], int count, Env *env) {
@@ -424,6 +416,7 @@ Type const macro_type = {
     .apply = macro_apply,
     .print = macro_print,
     .traverse = macro_traverse,
+    .eval = node_eval_self,
     .special = true,
 };
 
@@ -463,13 +456,19 @@ static Node *primitive_apply(Node *_proc, Node *const args[], int count, Env *en
 
 static void primitive_print(Node *_n, Printer *p) {
     Primitive *prim = (Primitive *)_n;
-    fprintf(p->file, "#(%s)", prim->name);
+    print_atom(p, "#(%s)", prim->name);
+}
+
+Node *node_eval_self(Node *node, Env *env) {
+    node_ref(node);
+    return node;
 }
 
 static Type const primitive_type = {
     .name = "primitive",
     .apply = primitive_apply,
     .print = primitive_print,
+    .eval = node_eval_self,
 };
 
 static Type const special_type = {
@@ -477,6 +476,7 @@ static Type const special_type = {
     .apply = primitive_apply,
     .print = primitive_print,
     .special = true,
+    .eval = node_eval_self,
 };
 
 static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
@@ -548,12 +548,9 @@ static Node *apply_cons(Node *const args[], int count, Env *env) {
     if (count != 2) return NULL;
     Pair *dec = pair_check(args[1]);
     if (!dec) return NULL;
-    Pair *ret = pair_new();
-    ret->addr = args[0];
     node_ref(args[0]);
-    ret->dec = dec;
-    node_ref(ret->dec);
-    return ret;
+    node_ref(dec);
+    return pair_new(args[0], dec);
 }
 
 static Node *apply_eq_query(Node *const args[], int count, Env *env) {
@@ -583,11 +580,8 @@ static Pair *flatten_vargs(Pair *args) {
     Pair *dec = flatten_vargs(args->dec);
     if (!dec) return NULL;
     Node *addr = args->addr;
-    Pair *ret = pair_new();
-    ret->addr = addr;
-    ret->dec = dec;
     node_ref(addr);
-    return ret;
+    return pair_new(addr, dec);
 }
 
 // TODO test crash for (apply f)

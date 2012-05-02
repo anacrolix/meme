@@ -1,4 +1,5 @@
 #include "true.h"
+#include "meme.h"
 #include "node.h"
 #include "printer.h"
 #include <assert.h>
@@ -13,6 +14,7 @@ static void true_print(Node *node, Printer *p) {
 static Type const true_type = {
     .name = "true",
     .print = true_print,
+    .eval = node_eval_self,
 };
 
 Node true_node_storage = {

@@ -22,10 +22,7 @@ Pair *parse_list(Lexer *lexer) {
         node_unref(addr);
         return NULL;
     }
-    Pair *ret = pair_new();
-    ret->addr = addr;
-    ret->dec = dec;
-    return ret;
+    return pair_new(addr, dec);
 }
 
 Node *parse_atom(Lexer *lexer) {

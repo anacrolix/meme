@@ -12,7 +12,7 @@ struct Pair {
 extern Type const pair_type;
 extern Pair *const nil_node;
 
-Pair *pair_new();
+Pair *pair_new(Node *, Pair *);
 Pair *pair_check(Node *);
 Pair *pair_dec(Pair *);
 Node *pair_addr(Pair *);

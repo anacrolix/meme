@@ -7,7 +7,6 @@
 #include "symbol.h"
 #include "true.h"
 #include "types.h"
-#include "glib.h"
 #include "false.h"
 #include "lexer.h"
 #include "node.h"
@@ -25,3 +24,5 @@ void collect_cycles();
 void node_print_file(Node *, FILE *);
 Pair *eval_list(Pair *args, Env *env);
 bool is_null(Pair *pair);
+Node *node_eval_self(Node *, Env *);
+

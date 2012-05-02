@@ -1,4 +1,5 @@
 #include "false.h"
+#include "meme.h"
 #include "type.h"
 #include "node.h"
 #include "printer.h"
@@ -14,6 +15,7 @@ static void false_print(Node *node, Printer *p) {
 static Type const false_type = {
     .name = "false",
     .print = false_print,
+    .eval = node_eval_self,
 };
 
 Node false_node_storage = {

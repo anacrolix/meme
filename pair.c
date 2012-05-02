@@ -34,25 +34,19 @@ static Node *pair_eval(Node *_pair, Env *env) {
     Pair *pair = (Pair *)_pair;
     Node *proc = node_eval(pair->addr, env);
     if (!proc) return NULL;
-    int argc = list_length(pair->dec);
+    int const argc = list_length(pair->dec);
     Node *args[argc];
     pair = pair->dec;
     bool special = node_special(proc);
-    if (special) {
-        for (Node **dest = args; !is_null(pair); pair = pair_dec(pair), dest++) {
-            *dest = pair_addr(pair);
-        }
-    } else {
-        if (!eval_list_to_array(pair, env, args)) {
-            node_unref(proc);
-            return NULL;
-        }
+    if (special) for (Node **dest = args; !is_null(pair); pair = pair_dec(pair), dest++) {
+        *dest = pair_addr(pair);
+    } else if (!eval_list_to_array(pair, env, args)) {
+        node_unref(proc);
+        return NULL;
     }
     Node *ret = node_apply(proc, args, argc, env);
-    if (!special) {
-        for (int i = 0; i < argc; i++) {
-            node_unref(args[i]);
-        }
+    if (!special) for (int i = 0; i < argc; i++) {
+        node_unref(args[i]);
     }
     node_unref(proc);
     return ret;
@@ -80,10 +74,12 @@ static NodeCmp pair_compare(Node *_left, Node *_right) {
     }
 }
 
+#ifdef SLICE_NODES
 static void pair_free(Node *_pair) {
     Pair *pair = (Pair *)_pair;
     g_slice_free(Pair, pair);
 }
+#endif
 
 Type const pair_type = {
     .name = "pair",
@@ -107,13 +103,15 @@ static Pair nil_node_storage = {
 
 Pair *const nil_node = &nil_node_storage;
 
-Pair *pair_new() {
+Pair *pair_new(Node *addr, Pair *dec) {
 #ifdef SLICE_NODES
     Pair *pair = g_slice_new(Pair);
 #else
     Pair *pair = malloc(sizeof *pair);
 #endif
     node_init(pair, &pair_type);
+    pair->addr = addr;
+    pair->dec = dec;
     return pair;
 }
 
