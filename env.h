@@ -10,7 +10,7 @@ struct Env {
     Env *outer;
 };
 
-Env *env_new(Env *);
+Env *env_new(Env *, SymTab *(*)());
 bool env_set(Env *, Symbol *, Node *);
 __attribute__((warn_unused_result))
 bool env_define(Env *, Symbol *, Node *);

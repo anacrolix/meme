@@ -10,14 +10,14 @@
 static Type env_type;
 
 Node *env_find(Env *env, Symbol *key) {
-    if (env == NULL) {
-        fprintf(stderr, "symbol not found: ");
-        node_print_file(key, stderr);
-        fputc('\n', stderr);
-        return NULL;
-    }
     Node *value;
     if (!env->symtab->ops->lookup(env->symtab, key, &value)) {
+        if (env->outer == NULL) {
+            fprintf(stderr, "symbol not found: ");
+            node_print_file(key, stderr);
+            fputc('\n', stderr);
+            return NULL;
+        }
         return env_find(env->outer, key);
     }
     if (!value) {
@@ -99,12 +99,10 @@ static Type env_type = {
     .print = env_print,
 };
 
-#include "gtree_symtab.h"
-
-Env *env_new(Env *outer) {
+Env *env_new(Env *outer, SymTab *(*symtab_new)(void)) {
     Env *ret = malloc(sizeof *ret);
     node_init(ret, &env_type);
-    ret->symtab = gtree_symtab_new();
+    ret->symtab = symtab_new();
     ret->outer = outer;
     if (outer) node_ref(outer);
     return ret;

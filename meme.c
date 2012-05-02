@@ -6,6 +6,8 @@
 #include "true.h"
 #include "false.h"
 #include "quote.h"
+#include "gtree_symtab.h"
+#include "ghash_symtab.h"
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -15,7 +17,9 @@ typedef struct Macro {
     Node *text;
 } Macro;
 
-extern Type const macro_type;
+static Type const macro_type;
+static Type const primitive_type;
+static Type const special_type;
 
 static Node all_nodes[1] = {
     {
@@ -201,7 +205,7 @@ void print_node_array_to_file(Node *const *nodes, int count, FILE *file) {
 
 static Node *closure_apply(Node *_proc, Node *const *args, int argc, Env *env) {
     Closure *proc = (Closure *)_proc;
-    Env *sub_env = env_new(proc->env);
+    Env *sub_env = env_new(proc->env, gtree_symtab_new);
     if (!extend_environment(proc->formals, args, argc, sub_env)) {
         fprintf(stderr, "error extending environment\n  procedure: ");
         node_print_file(proc, stderr);
@@ -224,16 +228,16 @@ Type const closure_type = {
     .eval = node_eval_self,
 };
 
-static Node *expand_macros(Node *node, Env *env);
+static Node *analyze(Node *node, Env *env);
 
-static Pair *expand_macros_pair(Pair *pair, Env *env) {
+static Pair *analyze_pair(Pair *pair, Env *env) {
     if (is_null(pair)) {
         node_ref(nil_node);
         return nil_node;
     }
-    Node *addr = expand_macros(pair_addr(pair), env);
+    Node *addr = analyze(pair_addr(pair), env);
     if (!addr) return NULL;
-    Pair *dec = expand_macros_pair(pair_dec(pair), env);
+    Pair *dec = analyze_pair(pair_dec(pair), env);
     if (!dec) {
         node_unref(addr);
         return NULL;
@@ -253,45 +257,49 @@ static Node *apply_macro(Macro *macro, Pair *args, Env *env) {
     return node_apply(macro->text, array, argc, env);
 }
 
-static Node *expand_macros(Node *node, Env *env) {
+static Node *analyze(Node *node, Env *env) {
     Pair *pair = pair_check(node);
     if (!pair || is_null(pair)) {
         node_ref(node);
         return node;
     }
-#if 0
-    fprintf(stderr, "expanding ");
+#if TRACE
+    fprintf(stderr, "analyzing ");
     node_print_file(pair_addr(pair), stderr);
     fputc('\n', stderr);
 #endif
-    Node *proc = expand_macros(pair_addr(pair), env);
-    if (!proc) return NULL;
-    Symbol *macrosym = symbol_check(proc);
-    if (!macrosym) goto done;
-    Node *_macro = env_find(env, macrosym);
-    if (!_macro) goto done;
-    Macro *macro = macro_check(_macro);
-    if (!macro) {
-        node_unref(_macro);
-        goto done;
+    Node *addr = analyze(pair_addr(pair), env);
+    if (!addr) return NULL;
+    Symbol *symbol = symbol_check(addr);
+    if (!symbol) goto compound;
+    Node *_proc = env_find(env, symbol);
+    if (!_proc) goto compound;
+    if (_proc->type == &macro_type) {
+        Macro *macro = macro_check(_proc);
+        node_unref(addr);
+        Node *ret = apply_macro(macro, pair_dec(pair), env);
+        node_unref(macro);
+        return ret;
+    } else if (_proc->type == &primitive_type
+            || _proc->type == &special_type) {
+        node_unref(addr);
+        addr = _proc;
+    } else {
+        node_unref(_proc);
     }
-    node_unref(proc);
-    Node *ret = apply_macro(macro, pair_dec(pair), env);
-    node_unref(macro);
-    return ret;
-done:
+compound:
     ;
-    Pair *dec = expand_macros_pair(pair_dec(pair), env);
+    Pair *dec = analyze_pair(pair_dec(pair), env);
     if (!dec) {
-        node_unref(proc);
+        node_unref(addr);
         return NULL;
     }
-    return pair_new(proc, dec);
+    return pair_new(addr, dec);
 }
 
 static Closure *closure_new(Node *vars, Node *body, Env *env) {
     Formals formals;
-    Node *fast_body = expand_macros(body, env);
+    Node *fast_body = analyze(body, env);
     if (!fast_body) return NULL;
     if (!formals_init(&formals, vars)) {
         node_unref(fast_body);
@@ -483,7 +491,7 @@ static void macro_print(Node *_macro, Printer *p) {
     print_token(p, END);
 }
 
-Type const macro_type = {
+static Type const macro_type = {
     .name = "macro",
     .apply = macro_apply,
     .print = macro_print,
@@ -509,7 +517,6 @@ typedef struct {
 
 typedef Primitive Special;
 
-static Type const primitive_type;
 
 typedef Node *(*PrimitiveApplyFunc)(Node *const [], int, Env *);
 
@@ -755,7 +762,7 @@ static PrimitiveType primitives[] = {
 };
 
 Env *top_env_new() {
-    Env *ret = env_new(NULL);
+    Env *ret = env_new(NULL, gtree_symtab_new);
     PrimitiveType *prim = special_forms;
     size_t count = sizeof special_forms / sizeof *special_forms;
     for (; count; prim++, count--) {
