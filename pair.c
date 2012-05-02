@@ -30,6 +30,12 @@ static bool eval_list_to_array(Pair *list, Env *env, Node *array[const]) {
     return false;
 }
 
+void list_to_array(Pair *list, Node **array) {
+    for (; !is_null(list); list = pair_dec(list), array++) {
+        *array = pair_addr(list);
+    }
+}
+
 static Node *pair_eval(Node *_pair, Env *env) {
     Pair *pair = (Pair *)_pair;
     Node *proc = node_eval(pair->addr, env);
@@ -38,9 +44,8 @@ static Node *pair_eval(Node *_pair, Env *env) {
     Node *args[argc];
     pair = pair->dec;
     bool special = node_special(proc);
-    if (special) for (Node **dest = args; !is_null(pair); pair = pair_dec(pair), dest++) {
-        *dest = pair_addr(pair);
-    } else if (!eval_list_to_array(pair, env, args)) {
+    if (special) list_to_array(pair, args);
+    else if (!eval_list_to_array(pair, env, args)) {
         node_unref(proc);
         return NULL;
     }
@@ -110,7 +115,9 @@ Pair *pair_new(Node *addr, Pair *dec) {
     Pair *pair = malloc(sizeof *pair);
 #endif
     node_init(pair, &pair_type);
+    assert(addr);
     pair->addr = addr;
+    assert(dec);
     pair->dec = dec;
     return pair;
 }

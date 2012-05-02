@@ -10,6 +10,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef struct Macro {
+    Node;
+    Node *text;
+} Macro;
+
+extern Type const macro_type;
+
 static Node all_nodes[1] = {
     {
         .next = all_nodes,
@@ -217,16 +224,85 @@ Type const closure_type = {
     .eval = node_eval_self,
 };
 
+static Node *expand_macros(Node *node, Env *env);
+
+static Pair *expand_macros_pair(Pair *pair, Env *env) {
+    if (is_null(pair)) {
+        node_ref(nil_node);
+        return nil_node;
+    }
+    Node *addr = expand_macros(pair_addr(pair), env);
+    if (!addr) return NULL;
+    Pair *dec = expand_macros_pair(pair_dec(pair), env);
+    if (!dec) {
+        node_unref(addr);
+        return NULL;
+    }
+    return pair_new(addr, dec);
+}
+
+static Macro *macro_check(Node *node) {
+    if (node->type == &macro_type) return (Macro *)node;
+    else return NULL;
+}
+
+static Node *apply_macro(Macro *macro, Pair *args, Env *env) {
+    int const argc = list_length(args);
+    Node *array[argc];
+    list_to_array(args, array);
+    return node_apply(macro->text, array, argc, env);
+}
+
+static Node *expand_macros(Node *node, Env *env) {
+    Pair *pair = pair_check(node);
+    if (!pair || is_null(pair)) {
+        node_ref(node);
+        return node;
+    }
+#if 0
+    fprintf(stderr, "expanding ");
+    node_print_file(pair_addr(pair), stderr);
+    fputc('\n', stderr);
+#endif
+    Node *proc = expand_macros(pair_addr(pair), env);
+    if (!proc) return NULL;
+    Symbol *macrosym = symbol_check(proc);
+    if (!macrosym) goto done;
+    Node *_macro = env_find(env, macrosym);
+    if (!_macro) goto done;
+    Macro *macro = macro_check(_macro);
+    if (!macro) {
+        node_unref(_macro);
+        goto done;
+    }
+    node_unref(proc);
+    Node *ret = apply_macro(macro, pair_dec(pair), env);
+    node_unref(macro);
+    return ret;
+done:
+    ;
+    Pair *dec = expand_macros_pair(pair_dec(pair), env);
+    if (!dec) {
+        node_unref(proc);
+        return NULL;
+    }
+    return pair_new(proc, dec);
+}
+
 static Closure *closure_new(Node *vars, Node *body, Env *env) {
     Formals formals;
-    if (!formals_init(&formals, vars)) return NULL;
+    Node *fast_body = expand_macros(body, env);
+    if (!fast_body) return NULL;
+    if (!formals_init(&formals, vars)) {
+        node_unref(fast_body);
+        return NULL;
+    }
     Closure *ret = malloc(sizeof *ret);
     node_init(ret, &closure_type);
     node_ref(env);
     ret->env = env;
     *ret->formals = formals;
-    node_ref(body);
-    ret->body = body;
+    ret->body = fast_body;
     return ret;
 }
 
@@ -281,6 +357,8 @@ static NodeCmp invert_nodecmp(NodeCmp cmp) {
         return NODE_CMP_NE;
     case NODE_CMP_GT:
         return NODE_CMP_LT;
+    case NODE_CMP_NOIMPL:
+        return NODE_CMP_NOIMPL;
     default:
         abort();
     }
@@ -357,12 +435,6 @@ Type const quote_type = {
     .traverse = quote_traverse,
 };
 
-typedef struct Macro {
-    Node;
-    Node *text;
-} Macro;
-
-extern Type const macro_type;
 
 static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     Macro *macro = (Macro *)_macro;

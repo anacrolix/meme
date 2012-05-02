@@ -1,7 +1,8 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python3
 
 import argparse
 import subprocess
+import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--compiler', choices=['clang', 'gcc'], default='gcc')
@@ -21,6 +22,6 @@ if args.optimize:
     build_args += ['-DNDEBUG', '-Ofast', '-flto', '-fwhole-program']
 
 build_str = ' '.join(build_args)
-print(build_str)
+print(build_str, file=sys.stderr)
 raise SystemExit(subprocess.Popen(' '.join(build_args), shell=True).wait())
 

@@ -25,4 +25,5 @@ void node_print_file(Node *, FILE *);
 Pair *eval_list(Pair *args, Env *env);
 bool is_null(Pair *pair);
 Node *node_eval_self(Node *, Env *);
+void list_to_array(Pair *, Node **);
 
