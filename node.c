@@ -57,7 +57,7 @@ bool node_special(Node *node) {
 }
 
 Node *node_eval(Node *node, Env *env) {
-#if 0
+#if TRACE
     fprintf(stderr, "evaluating: ");
     node_print_file(node, stderr);
     fputc('\n', stderr);
@@ -69,7 +69,7 @@ Node *node_eval(Node *node, Env *env) {
         fputc('\n', stderr);
         return NULL;
     }
-#if 0
+#if TRACE
     node_print_file(node, stderr);
     if (ret != void_node) {
         fprintf(stderr, " ===> ");
