@@ -12,10 +12,7 @@ typedef struct {
 
 static bool lookup(void *_this, Symbol *key, Node **value) {
     GTreeSymTab *this = _this;
-    gpointer _value;
-    bool found = g_tree_lookup_extended(this->tree, key, NULL, &_value);
-    *value = _value;
-    return found;
+    return g_tree_lookup_extended(this->tree, key, NULL, (gpointer *)value);
 }
 
 static bool replace(void *_this, Symbol *key, Node *value) {
