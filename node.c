@@ -82,8 +82,7 @@ Node *node_eval(Node *node, Env *env) {
 
 void free_node(Node *node) {
 #ifdef SLICE_NODES
-    if (node->type->free) node->type->free(node);
-    else free(node);
+    node->type->free(node);
 #else
     free(node);
 #endif

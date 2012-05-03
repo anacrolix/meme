@@ -220,12 +220,17 @@ static Node *closure_apply(Node *_proc, Node *const *args, int argc, Env *env) {
     return ret;
 }
 
+static void closure_free(Node *node) {
+    NODE_FREE((Closure *)node);
+}
+
 Type const closure_type = {
     .name = "closure",
     .apply = closure_apply,
     .print = closure_print,
     .traverse = closure_traverse,
     .eval = node_eval_self,
+    .free = closure_free,
 };
 
 static Node *analyze(Node *node, Env *env);
@@ -305,7 +310,7 @@ static Closure *closure_new(Node *vars, Node *body, Env *env) {
         node_unref(fast_body);
         return NULL;
     }
-    Closure *ret = malloc(sizeof *ret);
+    Closure *ret = NODE_NEW(*ret);
     node_init(ret, &closure_type);
     node_ref(env);
     ret->env = env;
@@ -436,13 +441,24 @@ static void quote_traverse(Node *_q, VisitProc visit, void *arg) {
     visit(q->quoted, arg);
 }
 
+static void quote_free(Node *node) {
+    NODE_FREE((Quote *)node);
+}
+
 Type const quote_type = {
     .name = "quote",
     .print = quote_print,
     .eval = quote_eval,
     .traverse = quote_traverse,
+    .free = quote_free,
 };
 
+Quote *quote_new(Node *quoted) {
+    Quote *quote = NODE_NEW(*quote);
+    node_init(quote, &quote_type);
+    quote->quoted = quoted;
+    return quote;
+}
 
 static void macro_traverse(Node *_macro, VisitProc visit, void *arg) {
     Macro *macro = (Macro *)_macro;
@@ -491,6 +507,10 @@ static void macro_print(Node *_macro, Printer *p) {
     print_token(p, END);
 }
 
+static void macro_free(Node *node) {
+    NODE_FREE((Macro *)node);
+}
+
 static Type const macro_type = {
     .name = "macro",
     .apply = macro_apply,
@@ -498,11 +518,12 @@ static Type const macro_type = {
     .traverse = macro_traverse,
     .eval = node_eval_self,
     .special = true,
+    .free = macro_free,
 };
 
 Node *macro_new(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
-    Macro *ret = malloc(sizeof *ret);
+    Macro *ret = NODE_NEW(*ret);
     node_init(ret, &macro_type);
     ret->text = *args;
     node_ref(ret->text);
@@ -543,11 +564,16 @@ Node *node_eval_self(Node *node, Env *env) {
     return node;
 }
 
+static void primitive_free(Node *node) {
+    NODE_FREE((Primitive *)node);
+}
+
 static Type const primitive_type = {
     .name = "primitive",
     .apply = primitive_apply,
     .print = primitive_print,
     .eval = node_eval_self,
+    .free = primitive_free,
 };
 
 static Type const special_type = {
@@ -556,10 +582,11 @@ static Type const special_type = {
     .print = primitive_print,
     .special = true,
     .eval = node_eval_self,
+    .free = primitive_free,
 };
 
 static Primitive *primitive_new(PrimitiveApplyFunc func, char const *name) {
-    Primitive *ret = malloc(sizeof *ret);
+    Primitive *ret = NODE_NEW(*ret);
     node_init(ret, &primitive_type);
     ret->apply = func;
     ret->name = name;
@@ -695,7 +722,7 @@ static Node *apply_defined_query(Node *const args[], int count, Env *env) {
 
 static Node *apply_quote(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
-    Quote *quote = malloc(sizeof *quote);
+    Quote *quote = NODE_NEW(*quote);
     node_init(quote, &quote_type);
     quote->quoted = *args;
     node_ref(quote->quoted);

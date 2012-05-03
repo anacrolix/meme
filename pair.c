@@ -80,12 +80,9 @@ static NodeCmp pair_compare(Node *_left, Node *_right) {
     }
 }
 
-#ifdef SLICE_NODES
 static void pair_free(Node *_pair) {
-    Pair *pair = (Pair *)_pair;
-    g_slice_free(Pair, pair);
+    NODE_FREE((Pair *)_pair);
 }
-#endif
 
 Type const pair_type = {
     .name = "pair",
@@ -93,9 +90,7 @@ Type const pair_type = {
     .eval = pair_eval,
     .traverse = pair_traverse,
     .compare = pair_compare,
-#ifdef SLICE_NODES
     .free = pair_free,
-#endif
 };
 
 static Pair nil_node_storage = {
@@ -110,11 +105,7 @@ static Pair nil_node_storage = {
 Pair *const nil_node = &nil_node_storage;
 
 Pair *pair_new(Node *addr, Pair *dec) {
-#ifdef SLICE_NODES
-    Pair *pair = g_slice_new(Pair);
-#else
-    Pair *pair = malloc(sizeof *pair);
-#endif
+    Pair *pair = NODE_NEW(*pair);
     node_init(pair, &pair_type);
     assert(addr);
     pair->addr = addr;

@@ -7,3 +7,5 @@ struct Quote {
 
 extern Type const quote_type;
 
+Quote *quote_new(Node *);
+

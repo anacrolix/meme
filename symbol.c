@@ -34,16 +34,21 @@ static NodeCmp symbol_compare(Node *_left, Node *_right) {
     else return NODE_CMP_EQ;
 }
 
+static void symbol_free(Node *node) {
+    NODE_FREE((Symbol *)node);
+}
+
 Type const symbol_type = {
     .name = "symbol",
     .print = symbol_print,
     .dealloc = symbol_dealloc,
     .eval = symbol_eval,
     .compare = symbol_compare,
+    .free = symbol_free,
 };
 
 Symbol *symbol_new(char const *s) {
-    Symbol *ret = malloc(sizeof *ret);
+    Symbol *ret = NODE_NEW(*ret);
     node_init(ret, &symbol_type);
     ret->s = strdup(s);
     return ret;

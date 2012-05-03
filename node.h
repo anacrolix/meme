@@ -20,3 +20,11 @@ bool node_special(Node *);
 NodeCmp node_compare(Node *, Node *);
 void free_node(Node *);
 
+#ifdef SLICE_NODES
+#   define NODE_NEW(ptr) g_slice_new(typeof(ptr))
+#   define NODE_FREE(node) g_slice_free(typeof(*(node)), (node))
+#else
+#   define NODE_NEW(type) malloc(sizeof(type))
+#   define NODE_FREE(node) free(node)
+#endif
+

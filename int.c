@@ -11,11 +11,7 @@ Int *int_check(Node *node) {
 }
 
 Int *int_new(long long ll) {
-#ifdef SLICE_NODES
-    Int *ret = g_slice_new(Int);
-#else
-    Int *ret = malloc(sizeof *ret);
-#endif
+    Int *ret = NODE_NEW(*ret);
     node_init(ret, &int_type);
     ret->ll = ll;
     return ret;
@@ -40,22 +36,19 @@ static Node *int_eval(Node *node, Env *env) {
     return node;
 }
 
-#ifdef SLICE_NODES
 static void int_free(Node *node) {
-    g_slice_free(Int, (Int *)node);
+    NODE_FREE((Int *)node);
 }
-#endif
 
 Type const int_type = {
     .name = "int",
     .print = int_print,
     .compare = int_compare,
     .eval = int_eval,
-#ifdef SLICE_NODES
     .free = int_free,
-#endif
 };
 
 long long int_as_ll(Int *i) {
     return i->ll;
 }
+

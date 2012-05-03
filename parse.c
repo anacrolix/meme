@@ -49,10 +49,7 @@ static Node *parse_quote(Lexer *lexer) {
     next_token(lexer);
     Node *quoted = parse(lexer);
     if (!quoted) return NULL;
-    Quote *ret = malloc(sizeof *ret);
-    node_init(ret, &quote_type);
-    ret->quoted = quoted;
-    return ret;
+    return quote_new(quoted);
 }
 
 Node *parse(Lexer *lexer) {

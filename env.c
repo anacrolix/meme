@@ -92,15 +92,20 @@ static void env_print(Node *_env, Printer *p) {
     print_token(p, END);
 }
 
+static void env_free(Node *node) {
+    NODE_FREE((Env *)node);
+}
+
 static Type env_type = {
     .name = "env",
     .dealloc = env_dealloc,
     .traverse = env_traverse,
     .print = env_print,
+    .free = env_free,
 };
 
 Env *env_new(Env *outer, SymTab *(*symtab_new)(void)) {
-    Env *ret = malloc(sizeof *ret);
+    Env *ret = NODE_NEW(*ret);
     node_init(ret, &env_type);
     ret->symtab = symtab_new();
     ret->outer = outer;

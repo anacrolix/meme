@@ -5,6 +5,7 @@
 #include "pair.h"
 #include "quote.h"
 #include "symbol.h"
+#include "glib.h"
 #include "true.h"
 #include "types.h"
 #include "false.h"

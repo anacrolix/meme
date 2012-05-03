@@ -22,9 +22,7 @@ typedef Node *(*ApplyFunc)(Node *, Node *const [], int, Env *);
 typedef Node *(*EvalFunc)(Node *, Env *);
 typedef void (*VisitProc)(Node *, void *);
 typedef void (*TraverseProc)(Node *, VisitProc, void *);
-#ifdef SLICE_NODES
 typedef void (*FreeProc)(Node *);
-#endif
 
 struct Type {
     char const *name;
@@ -35,8 +33,7 @@ struct Type {
     void (*print)(Node *, Printer *);
     CompareFunc compare;
     bool special;
-#ifdef SLICE_NODES
+    // unused unless SLICE_NODES is in effect
     FreeProc free;
-#endif
 };
 
