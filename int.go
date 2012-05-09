@@ -1,0 +1,34 @@
+package meme
+
+type Int struct {
+	NodeBase
+    val int64
+}
+
+func (me Int) Apply([]Node, Env) Node {
+    panic("integers are not applicable")
+}
+
+func (me Int) Eval(Env) interface{} {
+    return me
+}
+
+func (me Int) Int64() int64 {
+    return me.val
+}
+
+func NewInt(val int64) Int {
+    return Int{val: val}
+}
+
+func (me Int) String() string {
+	return printString(me)
+}
+
+func (me Int) Print(p *Printer) {
+	p.Atom(me.val)
+}
+
+func (me Int) Analyze(Env) interface{} {
+	return me
+}
