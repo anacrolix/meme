@@ -14,7 +14,7 @@ func NewQuote(node interface{}) Quote {
     }
 }
 
-func (me Quote) Analyze(Env) interface{} {
+func (me Quote) Analyze(Env, *Func) Evalable {
 	return me
 }
 
@@ -25,4 +25,8 @@ func (me Quote) Print(p *Printer) {
 
 func (me Quote) String() string {
 	return printString(me)
+}
+
+func (me Quote) Expand(Env) Parseable {
+	return me
 }

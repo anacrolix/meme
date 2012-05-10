@@ -103,7 +103,9 @@ func (me *Lexer) discardWhitespace() {
         if err != nil {
             panic(err)
         }
-        if !unicode.IsSpace(c) {
+		if c == ';' {
+			me.discardLine()
+		} else if !unicode.IsSpace(c) {
             me.unreadRune()
             return
         }

@@ -1,30 +1,32 @@
 package meme
 
-import (
-	"fmt"
-)
-
-type Evalable interface {
-    Eval(Env) interface{}
+type Applier interface {
+    Apply(List, Env) Node
 }
 
+type Applicable Applier
+
+type Expandable interface {
+	Expand(Env) Parseable
+}
+
+type Evaler interface {
+	Eval(Env) interface{}
+}
+
+type Parseable interface {
+	Printable
+	Evalable
+}
+
+type Evalable Evaler
+
 type Printable interface {
-	fmt.Stringer
 	Print(*Printer)
 }
 
-type Analyzer interface {
-	Analyze(List, Env) Evalable
+type Node interface {
 }
-
-type Node interface{
-	Evalable
-	Printable
-	Analyzer
-}
-
-type NodeBase struct{}
-
 
 func printString(p Printable) string {
 	np := NewPrinter()

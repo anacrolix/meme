@@ -5,5 +5,6 @@ type Env interface {
     Find(string) interface{}
 	FindVar(string) *Var
 	SetFast(*Func, int, interface{})
+	FindFast(*Func, int) *Var
 }
 

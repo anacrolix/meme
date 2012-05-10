@@ -2,35 +2,84 @@ package meme
 
 var builtins map[string]Applicable
 
+var specials map[string]func(List)
+
 func init() {
 	builtins = map[string]Applicable{
-		"*": primitive{
-			apply: func(args List, env Env) interface{} {
-				opnd := args.Car().(Int)
-				val := opnd.Int64()
-				args = args.Cdr()
-				for ; !args.IsNull(); args = args.Cdr() {
-					val *= args.Car().(Int).Int64()
-				}
-				return NewInt(val)
-			},
-		},
-		"__define": primitive{
-			apply: func (args List, env Env) interface{} {
-				var value interface{}
-				switch args.Len() {
-				case 2:
-					value = args.Index(1)
-				case 1:
-				default:
-					panic("invalid argument count")
-				}
-				env.Define(args.Car().(Symbol).Value(), value)
-				return Void
-			},
-			special: true,
-		},
+		"__define": define{},
+		"if": if_{},
+		"null?": nullQuery{},
+		"__macro", NewSpecial(func(args List)Evalable {
+			if args.Len() != 1 {
+				panic(nil)
+			}
+
 	}
+}
+
+type define struct{}
+
+func (me define) Apply(args List, env Env) Node{
+	var sym Symbol
+	var val Node
+	if fmls, ok := args.Car().(List); ok {
+		sym = fmls.Car().(Symbol)
+		fmls = fmls.Cdr()
+		if fmls.Len() >= 1 && fmls.Car().(Symbol).Value() == "." {
+			fmls = fmls.Cdr()
+		}
+		val = lambda{}.Apply(NewPair(fmls, args.Cdr()), env)
+	} else {
+		sym = args.Car().(Symbol)
+		switch args.Len() {
+		case 2:
+			val = args.Index(1).(Evalable).Eval(env)
+		case 1:
+		default:
+			panic(nil)
+		}
+	}
+	env.Define(sym.Value(), val)
+	return Void
+}
+
+type if_ struct{}
+
+func (me if_) Apply(args List, env Env) Node {
+	var test, conseq, alt Evalable
+	switch args.Len() {
+	case 3:
+		alt = args.Index(2).(Evalable)
+	case 2:
+	default:
+		panic("invalid arg count")
+	}
+	conseq = args.Index(1).(Evalable)
+	test = args.Car().(Evalable)
+	if Truth(test.Eval(env)) {
+		return conseq.Eval(env)
+	} else if alt != nil {
+		return alt.Eval(env)
+	}
+	return Void
+}
+
+type nullQuery struct{}
+
+func (nullQuery) Apply(args List, env Env) Node {
+	if args.Len() != 1 {
+		panic(nil)
+	}
+	if Eval(args.Car().(Evalable), env).(List).IsNull() {
+		return True
+	}
+	return False
+}
+
+type lambda struct{}
+
+func (lambda) Apply(args List, env Env) Node {
+	return lambda{}
 }
 
 /*

@@ -22,7 +22,7 @@
   (if (eq? 'else (car first))
     (pack-exps (cdr first))
     (list 'if (car first) (pack-exps (cdr first)) (apply unpack rest))))
-(defmacro (cond . clauses) (apply unpack clauses))
+;(defmacro (cond . clauses) (apply unpack clauses))
 (define (or . tests)
   (cond ((null? tests) #f)
         ((car tests) (car tests))

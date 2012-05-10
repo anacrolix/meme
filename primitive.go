@@ -1,14 +1,19 @@
 package meme
 
+import ()
+
 type primitive struct {
-	apply func(List, Env) interface{}
-	special bool
+	apply func(List, Env) Node
 }
 
-func (me primitive) Apply(args List, env Env) interface{} {
+func (me primitive) Apply(args List, env Env) Node {
 	return me.apply(args, env)
 }
 
 func (me primitive) Special() bool {
-	return me.special
+	return false
+}
+
+func (me primitive) Eval(Env) interface{} {
+	return me
 }

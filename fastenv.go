@@ -14,6 +14,13 @@ func (me fastEnv) SetFast(func_ *Func, index int, value interface{}) {
 	}
 }
 
+func (me fastEnv) FindFast(func_ *Func, index int) *Var {
+	if me.func_ == func_ {
+		return me.vars[index]
+	}
+	return me.outer.FindFast(func_, index)
+}
+
 func (me fastEnv) Define(name string, value interface{}) {
 }
 

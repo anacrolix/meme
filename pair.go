@@ -1,11 +1,15 @@
 package meme
 
+import (
+	"fmt"
+)
+
 type Pair struct {
-	addr interface{}
+	addr Node
 	dec  List
 }
 
-func (me Pair) Car() interface{} {
+func (me Pair) Car() Node {
 	return me.addr
 }
 
@@ -17,7 +21,7 @@ func (me Pair) IsNull() bool {
 	return false
 }
 
-func NewPair(addr interface{}, dec List) Pair {
+func NewPair(addr Node, dec List) Pair {
 	return Pair{
 		addr: addr,
 		dec:  dec,
@@ -28,23 +32,23 @@ func evalList(list List, env Env) List {
 	if list.IsNull() {
 		return list
 	}
-	return NewPair(list.Car().(Evalable).Eval(env), evalList(list.Cdr(), env))
+	return NewPair(list.Car().(Evaler).Eval(env), evalList(list.Cdr(), env))
 }
 
 func (me Pair) Eval(env Env) interface{} {
-	proc := me.Car().(Evalable).Eval(env).(Applicable)
-	args := me.Cdr()
-	if !proc.Special() {
-		args = evalList(args, env)
-	}
-	return proc.Apply(args, env)
+	proc := Eval(me.Car().(Evalable), env).(Applier)
+	return proc.Apply(me.Cdr(), env)
 }
 
 func (me Pair) Print(p *Printer) {
 	p.SyntaxToken(ListStart)
 	var list List = me
 	for !list.IsNull() {
-		list.Car().(Printable).Print(p)
+		if canPrint, ok := list.Car().(Printable); ok {
+			canPrint.Print(p)
+		} else {
+			p.Atom(fmt.Sprint(list.Car()))
+		}
 		list = list.Cdr()
 	}
 	p.SyntaxToken(ListEnd)
@@ -54,7 +58,7 @@ func (me Pair) String() string {
 	return printString(me)
 }
 
-func (me Pair) Index(i uint) interface{} {
+func (me Pair) Index(i uint) Node {
 	if i == 0 {
 		return me.Car()
 	}
@@ -68,22 +72,6 @@ func (me Pair) Len() uint {
 	return 1 + me.Cdr().Len()
 }
 
-func (me Pair) Map(f func(interface{}) interface{}) List {
+func (me Pair) Map(f MapFunc) List {
 	return NewPair(f(me.Car()), me.Cdr().Map(f))
-}
-
-func (me Pair) Analyze(env Env) Evalable {
-	proc := me.Car().(Node).Analyze(nil, env)
-	if anal, ok := proc.(Analyzer); ok {
-		return anal.Analyze(me.Cdr(), env).(Evalable)
-	}
-	/*
-	if macro, ok := procVar.Eval(nil).(Macro); ok {
-		return macro.Apply(me.Cdr(), env).(Evalable)
-	}
-	*/
-
-	return NewPair(proc, me.Cdr().Map(func(arg interface{}) interface{} {
-		return arg.(Node).Analyze(nil, env)
-	}))
 }

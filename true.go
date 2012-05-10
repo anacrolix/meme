@@ -10,7 +10,7 @@ func (me trueType) Eval(Env) interface{} {
     return me
 }
 
-func (trueType) Analyze(Env) interface{} {
+func (trueType) Expand(Env) Parseable {
 	return True
 }
 

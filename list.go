@@ -1,13 +1,13 @@
 package meme
 
-type List interface {
-    Evalable
-	Printable
-    Car() interface{}
-    Cdr() List
-    IsNull() bool
-	Index(uint) interface{}
-	Len() uint
-	Map(func(interface{})interface{}) List
-}
+type MapFunc func(Node) Node
 
+type List interface {
+	Parseable
+	Car() Node
+	Cdr() List
+	IsNull() bool
+	Index(uint) Node
+	Len() uint
+	Map(MapFunc) List
+}

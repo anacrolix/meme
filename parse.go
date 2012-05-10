@@ -26,7 +26,7 @@ func (me *parser) parseList() List {
     return NewPair(me.parse(), me.parseList())
 }
 
-func (me *parser) parseAtom() Printable {
+func (me *parser) parseAtom() Parseable {
     s := me.tok.(Atom).Value
     r, _, err := strings.NewReader(s).ReadRune()
     if err != nil {
@@ -47,7 +47,7 @@ func (me *parser) parseAtom() Printable {
     return NewSymbol(s)
 }
 
-func (me *parser) parse() Printable {
+func (me *parser) parse() Parseable {
     if _, ok := me.tok.(Atom); ok {
         return me.parseAtom()
     }
@@ -62,7 +62,7 @@ func (me *parser) parse() Printable {
     panic("syntax error")
 }
 
-func Parse(l *Lexer) Printable {
+func Parse(l *Lexer) Parseable {
     p := parser{
         L: l,
     }

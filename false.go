@@ -12,7 +12,7 @@ func (falseType) Print(p *Printer) {
 	p.Atom("#f")
 }
 
-func (falseType) Analyze(Env) interface{} {
+func (falseType) Expand(Env) Parseable {
 	return False
 }
 

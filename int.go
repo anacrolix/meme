@@ -1,7 +1,6 @@
 package meme
 
 type Int struct {
-	NodeBase
     val int64
 }
 
@@ -29,6 +28,6 @@ func (me Int) Print(p *Printer) {
 	p.Atom(me.val)
 }
 
-func (me Int) Analyze(Env) interface{} {
+func (me Int) Expand(Env) Parseable {
 	return me
 }

@@ -1,10 +1,11 @@
 package meme
 
 type Func struct {
-    body Evalable
+    body Evaler
 	locals []string
 	fixed int
 	rest bool
+	outer *Func
 }
 
 func (me Func) NumParams() (num int) {
@@ -38,4 +39,16 @@ func (me *Func) Run(args List, outer Env) interface{} {
 		panic("too many arguments given")
 	}
 	return me.body.Eval(env)
+}
+
+func (me Func) NewFastVar(name string) *FastVar {
+	for i := 0; i < len(me.locals); i++ {
+		if me.locals[i] == name {
+			return &FastVar{
+				index: i,
+				func_: &me,
+			}
+		}
+	}
+	return me.outer.NewFastVar(name)
 }

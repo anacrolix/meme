@@ -22,6 +22,10 @@ func (me GlobalEnv) FindVar(name string) *Var {
 	panic("undefined: " + name)
 }
 
+func (me GlobalEnv) FindFast(*Func, int) *Var {
+	panic("can't find fast in global env")
+}
+
 func NewTopEnv() (ret *GlobalEnv) {
 	ret = &GlobalEnv{
 		vars: make(map[string]Var, len(builtins)),
