@@ -36,16 +36,3 @@ func (me Symbol) Print(p *Printer) {
 	p.Atom(me.val)
 }
 
-func (me Symbol) Analyze(env Env, func_ *Func) Evalable {
-	if func_ != nil {
-		fv := func_.NewFastVar(me.val)
-		if fv != nil {
-			return fv
-		}
-	}
-	return env.FindVar(me.val)
-}
-
-func (me Symbol) Expand(Env) Parseable {
-	return me
-}

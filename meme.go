@@ -15,25 +15,17 @@ func Eval(a Evalable, env Env) (ret interface{}) {
 		log.Println("evaluated", a, "->", ret)
 	}()
 	ret = a.Eval(env)
+	if ret == nil {
+		panic(nil)
+	}
 	return
 }
 
-func Analyze(a Parseable, env Env) (ret Evalable) {
-	log.Println("analyzing", a)
+func Apply(a Applicable, args List, env Env) (ret Node) {
+	log.Println("applying", a, "to", args)
 	defer func() {
-		log.Println("analyzed", a, "->", ret)
+		log.Println("applied", a, "to", args, "->", ret)
 	}()
-	if list, ok := a.(List); ok {
-		proc := Analyze(list.Car().(Parseable), env)
-		if sym, ok := proc.(Symbol); ok {
-			spec, ok := env.Find(sym.Value()).(Special)
-			if ok {
-				return Analyze(spec.Apply(list.Cdr(), env), env)
-			}
-		}
-		return NewPair(proc, list.Cdr().Map(func(n Node)Node {
-			return Analyze(n.(Parseable), env)
-		}))
-	}
-	return a
+	ret = a.Apply(args, env)
+	return
 }

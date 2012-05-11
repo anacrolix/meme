@@ -14,6 +14,9 @@ func (me Pair) Car() Node {
 }
 
 func (me Pair) Cdr() List {
+	if me.dec == nil {
+		panic(nil)
+	}
 	return me.dec
 }
 
@@ -22,6 +25,9 @@ func (me Pair) IsNull() bool {
 }
 
 func NewPair(addr Node, dec List) Pair {
+	if addr == nil || dec == nil {
+		panic(nil)
+	}
 	return Pair{
 		addr: addr,
 		dec:  dec,
@@ -30,14 +36,20 @@ func NewPair(addr Node, dec List) Pair {
 
 func evalList(list List, env Env) List {
 	if list.IsNull() {
-		return list
+		return Nil
 	}
-	return NewPair(list.Car().(Evaler).Eval(env), evalList(list.Cdr(), env))
+	return NewPair(Eval(list.Car().(Evaler), env), evalList(list.Cdr(), env))
 }
 
 func (me Pair) Eval(env Env) interface{} {
+	if sym, ok := me.Car().(Symbol); ok {
+		if spec, ok := specials[sym.Value()]; ok {
+			return spec(me.Cdr(), env)
+		}
+	}
 	proc := Eval(me.Car().(Evalable), env).(Applier)
-	return proc.Apply(me.Cdr(), env)
+	args := me.Cdr()
+	return Apply(proc, args, env)
 }
 
 func (me Pair) Print(p *Printer) {

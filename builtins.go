@@ -2,122 +2,96 @@ package meme
 
 var builtins map[string]Applicable
 
-var specials map[string]func(List)
+var specials map[string]func(List, Env)Node
 
 func init() {
+	specials = map[string]func(List, Env)Node {
+		"define": applyDefine,
+		"if": applyIf,
+	}
 	builtins = map[string]Applicable{
-		"__define": define{},
-		"if": if_{},
-		"null?": nullQuery{},
-		"__macro", NewSpecial(func(args List)Evalable {
-			if args.Len() != 1 {
-				panic(nil)
-			}
-
+		"null?": NewPrimitive(applyNullQuery),
+		"+": NewPrimitive(applyPlus),
+		"cdr": NewPrimitive(applyCdr),
 	}
 }
 
-type define struct{}
-
-func (me define) Apply(args List, env Env) Node{
-	var sym Symbol
-	var val Node
+func applyDefine(args List, env Env) Node {
+	var name Symbol
+	var value Node
 	if fmls, ok := args.Car().(List); ok {
-		sym = fmls.Car().(Symbol)
+		name = fmls.Car().(Symbol)
 		fmls = fmls.Cdr()
-		if fmls.Len() >= 1 && fmls.Car().(Symbol).Value() == "." {
-			fmls = fmls.Cdr()
+		var addr Node
+		if fmls.Len() == 2 && fmls.Car().(Symbol).Value() == "." {
+			addr = fmls.Index(1)
+		} else {
+			addr = fmls
 		}
-		val = lambda{}.Apply(NewPair(fmls, args.Cdr()), env)
+		value = applyLambda(NewPair(addr, args.Cdr()), env)
 	} else {
-		sym = args.Car().(Symbol)
+		name = args.Car().(Symbol)
 		switch args.Len() {
-		case 2:
-			val = args.Index(1).(Evalable).Eval(env)
 		case 1:
+		case 2:
+			value = args.Index(1).(Evalable).Eval(env)
 		default:
 			panic(nil)
 		}
 	}
-	env.Define(sym.Value(), val)
+	env.Define(name.Value(), value)
 	return Void
 }
 
-type if_ struct{}
-
-func (me if_) Apply(args List, env Env) Node {
-	var test, conseq, alt Evalable
-	switch args.Len() {
-	case 3:
-		alt = args.Index(2).(Evalable)
-	case 2:
-	default:
-		panic("invalid arg count")
-	}
-	conseq = args.Index(1).(Evalable)
-	test = args.Car().(Evalable)
-	if Truth(test.Eval(env)) {
-		return conseq.Eval(env)
-	} else if alt != nil {
-		return alt.Eval(env)
-	}
-	return Void
-}
-
-type nullQuery struct{}
-
-func (nullQuery) Apply(args List, env Env) Node {
-	if args.Len() != 1 {
-		panic(nil)
-	}
-	if Eval(args.Car().(Evalable), env).(List).IsNull() {
-		return True
-	}
-	return False
-}
-
-type lambda struct{}
-
-func (lambda) Apply(args List, env Env) Node {
-	return lambda{}
-}
-
-/*
-func parseFormals(names []Node) (fixed []string, rest *string) {
-	for i := 0; i < len(names); i++ {
-		value := names[i].(Symbol).Value()
-		if value == "." {
-			*rest = names[i+1].(Symbol).Value()
-			if i+2 != len(names) {
-				panic("excess variadic names")
+func parseFormals(fmls Node) (fixed []string, rest *string) {
+	if names, ok := fmls.(List); ok {
+		for !names.IsNull() {
+			val := names.Car().(Symbol).Value()
+			if val == "." {
+				tmpRest := names.Index(1).(Symbol).Value()
+				rest = &tmpRest
+				if names.Len() != 2 {
+					panic(nil)
+				}
+				return
 			}
-			return
+			fixed = append(fixed, val)
+			names = names.Cdr()
 		}
-		fixed = append(fixed, value)
+		return
+	}
+	tmpRest := fmls.(Symbol).Value()
+	rest = &tmpRest
+	return
+}
+
+func applyBegin(args List, env Env) (ret Node) {
+	for !args.IsNull() {
+		ret = Eval(args.Car().(Evalable), env)
+		args = args.Cdr()
 	}
 	return
 }
 
-func applyLambda(args []Node, env Env) interface{} {
-	if len(args) > 2 {
-		panic("invalid argument count")
+func applyLambda(args List, env Env) Node {
+	if args.Len() < 2 {
+		panic(nil)
 	}
-	fixed, rest := parseFormals(args)
-	return Func{
-		Body:          args[1].(Evalable),
-		FixedVarNames: fixed,
-		RestVarName:   rest,
-	}
+	fixed, rest := parseFormals(args.Car())
+	return NewClosure(NewFunc(fixed, rest, args.Cdr()), env)
 }
 
-func applyIf(args []interface{}, env Env) interface{} {
-	if len(args) > 3 {
+func applyIf(args List, env Env) Node {
+	if args.Len() > 3 {
 		panic("too many arguments")
 	}
-	if Truth(args[0].(Evalable).Eval(env)) {
-		return args[1].(Evalable).Eval(env)
+	if Truth(Eval(args.Car().(Evalable), env)) {
+		return Eval(args.Index(1).(Evalable), env)
 	}
-	return args[2].(Evalable).Eval(env)
+	if args.Len() == 3 {
+		return Eval(args.Index(2).(Evalable), env)
+	}
+	return Void
 }
 
 /*
@@ -136,15 +110,14 @@ static Node *apply_car(Node *const args[], int count, Env *env) {
     return ret;
 }
 
-static Node *apply_cdr(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Pair *pair = pair_check(*args);
-    if (!pair || pair == nil_node) return NULL;
-    Pair *ret = pair->dec;
-    node_ref(ret);
-    return ret;
+*/
+func applyCdr(args List, env Env) Node {
+	if args.Len() != 1 {
+		panic(nil)
+	}
+	return args.Car().(List).Cdr()
 }
-
+/*
 static Node *apply_symbol_query(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
     Node *ret = symbol_check(*args) ? true_node : false_node;
@@ -152,25 +125,29 @@ static Node *apply_symbol_query(Node *const args[], int count, Env *env) {
     return ret;
 }
 
-static Node *apply_plus(Node *const args[], int count, Env *env) {
-    if (count < 1) return NULL;
-    long long ll = 0;
-    for (; count; args++, count--) {
-        Int *opnd = int_check(*args);
-        if (!opnd) return NULL;
-        ll += opnd->ll;
-    }
-    return int_new(ll);
+*/
+func applyPlus(args List, env Env) Node {
+	if args.Len() < 1 {
+		panic(nil)
+	}
+	var ll int64
+	for !args.IsNull() {
+		ll += args.Car().(Int).Int64()
+		args = args.Cdr()
+	}
+	return NewInt(ll)
 }
 
-static Node *apply_null_query(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Pair *pair = pair_check(*args);
-    if (!pair) return NULL;
-    Node *ret = pair->addr ? false_node : true_node;
-    node_ref(ret);
-    return ret;
+func applyNullQuery(args List, env Env) Node {
+	if args.Len() != 1 {
+		panic(nil)
+	}
+	if args.Car().(List).IsNull() {
+		return True
+	}
+	return False
 }
+/*
 
 static Node *apply_cons(Node *const args[], int count, Env *env) {
     if (count != 2) return NULL;
