@@ -1,17 +1,17 @@
 package meme
 
 type Quote struct {
-    quoted interface{}
+	quoted interface{}
 }
 
 func (me Quote) Eval(env Env) interface{} {
-    return me.quoted
+	return me.quoted
 }
 
 func NewQuote(node interface{}) Quote {
-    return Quote{
-        quoted: node,
-    }
+	return Quote{
+		quoted: node,
+	}
 }
 
 func (me Quote) Analyze(Env, *Func) Evalable {

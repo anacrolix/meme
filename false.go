@@ -5,7 +5,7 @@ type falseType struct{}
 var False falseType
 
 func (me falseType) Eval(Env) interface{} {
-    return me
+	return me
 }
 
 func (falseType) Print(p *Printer) {

@@ -1,9 +1,9 @@
 package meme
 
 type Func struct {
-    body List
+	body  List
 	fixed []string
-	rest *string
+	rest  *string
 }
 
 func (me *Func) Eval(env Env) interface{} {
@@ -27,7 +27,7 @@ func (me *Func) Run(args List, outer Env) interface{} {
 func NewFunc(fixed []string, rest *string, body List) *Func {
 	return &Func{
 		fixed: fixed,
-		rest: rest,
-		body: body,
+		rest:  rest,
+		body:  body,
 	}
 }

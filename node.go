@@ -1,7 +1,7 @@
 package meme
 
 type Applier interface {
-    Apply(List, Env) Node
+	Apply(List, Env) Node
 }
 
 type Applicable Applier

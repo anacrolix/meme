@@ -6,13 +6,13 @@ import (
 )
 
 type Printer struct {
-	buf *bytes.Buffer
+	buf      *bytes.Buffer
 	lastType uint
 }
 
 func NewPrinter() Printer {
 	return Printer{
-		buf: &bytes.Buffer{},
+		buf:      &bytes.Buffer{},
 		lastType: InvalidToken,
 	}
 }

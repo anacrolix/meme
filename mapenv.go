@@ -1,7 +1,7 @@
 package meme
 
 type MapEnv struct {
-	vars map[string]Var
+	vars  map[string]Var
 	outer Env
 }
 
@@ -25,4 +25,3 @@ func (me MapEnv) Find(name string) interface{} {
 	}
 	return me.outer.Find(name)
 }
-

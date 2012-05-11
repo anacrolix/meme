@@ -2,17 +2,17 @@ package meme
 
 var builtins map[string]Applicable
 
-var specials map[string]func(List, Env)Node
+var specials map[string]func(List, Env) Node
 
 func init() {
-	specials = map[string]func(List, Env)Node {
+	specials = map[string]func(List, Env) Node{
 		"define": applyDefine,
-		"if": applyIf,
+		"if":     applyIf,
 	}
 	builtins = map[string]Applicable{
 		"null?": NewPrimitive(applyNullQuery),
-		"+": NewPrimitive(applyPlus),
-		"cdr": NewPrimitive(applyCdr),
+		"+":     NewPrimitive(applyPlus),
+		"cdr":   NewPrimitive(applyCdr),
 	}
 }
 
@@ -117,6 +117,7 @@ func applyCdr(args List, env Env) Node {
 	}
 	return args.Car().(List).Cdr()
 }
+
 /*
 static Node *apply_symbol_query(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
@@ -147,6 +148,7 @@ func applyNullQuery(args List, env Env) Node {
 	}
 	return False
 }
+
 /*
 
 static Node *apply_cons(Node *const args[], int count, Env *env) {

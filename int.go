@@ -1,23 +1,23 @@
 package meme
 
 type Int struct {
-    val int64
+	val int64
 }
 
 func (me Int) Apply([]Node, Env) Node {
-    panic("integers are not applicable")
+	panic("integers are not applicable")
 }
 
 func (me Int) Eval(Env) interface{} {
-    return me
+	return me
 }
 
 func (me Int) Int64() int64 {
-    return me.val
+	return me.val
 }
 
 func NewInt(val int64) Int {
-    return Int{val: val}
+	return Int{val: val}
 }
 
 func (me Int) String() string {
@@ -31,4 +31,3 @@ func (me Int) Print(p *Printer) {
 func (me Int) Expand(Env) Parseable {
 	return me
 }
-

@@ -3,11 +3,11 @@ package meme
 type trueType struct{}
 
 func (me trueType) Apply([]Node, Env) Node {
-    panic("true is not an operator")
+	panic("true is not an operator")
 }
 
 func (me trueType) Eval(Env) interface{} {
-    return me
+	return me
 }
 
 func (trueType) Expand(Env) Parseable {
@@ -23,4 +23,3 @@ func (trueType) String() string {
 }
 
 var True trueType
-
