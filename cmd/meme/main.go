@@ -12,6 +12,9 @@ func runReader(reader *bufio.Reader, env meme.Env) {
     lexer := meme.NewLexer(reader)
     for {
         data := meme.Parse(&lexer)
+		if data == nil {
+			break
+		}
 		code := data
         result := meme.Eval(code, env)
         if !meme.IsVoid(result) {

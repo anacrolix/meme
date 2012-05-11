@@ -4,6 +4,7 @@ import (
     "unicode"
     "strconv"
     "strings"
+	"io"
 )
 
 type parser struct {
@@ -11,15 +12,15 @@ type parser struct {
     L *Lexer
 }
 
-func (me *parser) advance() {
-    me.tok = me.L.NextToken()
+func (me *parser) advance() (err error) {
+    me.tok, err = me.L.NextToken()
+	return
 }
 
 func (me *parser) parseList() List {
-    me.advance()
-    if me.tok == nil {
-        panic("unterminated list")
-    }
+	if err := me.advance(); err != nil {
+		panic(err)
+	}
 	if st, ok := me.tok.(SyntaxToken); ok && st.Type == ListEnd {
 		return Nil
     }
@@ -56,7 +57,9 @@ func (me *parser) parse() Parseable {
     case ListStart:
         return me.parseList()
     case QuoteType:
-        me.advance()
+		if err := me.advance(); err != nil {
+			panic(err)
+		}
         return NewQuote(me.parse())
     }
     panic("syntax error")
@@ -66,6 +69,11 @@ func Parse(l *Lexer) Parseable {
     p := parser{
         L: l,
     }
-	p.advance()
+	if err := p.advance(); err != nil {
+		if err != io.EOF {
+			panic(err)
+		}
+		return nil
+	}
     return p.parse()
 }

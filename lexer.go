@@ -49,7 +49,7 @@ type Lexer struct {
 
 func (me *Lexer) readRune() (r rune, err error) {
     r, _, err = me.R.ReadRune()
-    if err == nil {
+    if err != nil {
         return
     }
     switch me.last {
@@ -97,19 +97,21 @@ func (me *Lexer) discardLine() {
     }
 }
 
-func (me *Lexer) discardWhitespace() {
+func (me *Lexer) discardWhitespace() (err error) {
     for {
-        c, err := me.readRune()
+		var c rune
+		c, err = me.readRune()
         if err != nil {
-            panic(err)
+			break
         }
 		if c == ';' {
 			me.discardLine()
 		} else if !unicode.IsSpace(c) {
             me.unreadRune()
-            return
+			break
         }
     }
+	return
 }
 
 func (me *Lexer) newToken() TokenStruct {
@@ -133,22 +135,28 @@ func (me *Lexer) newAtom(val string) Atom {
     }
 }
 
-func (me *Lexer) NextToken() Token {
-    me.discardWhitespace()
-    c, err := me.readRune()
+func (me *Lexer) NextToken() (tok Token, err error) {
+    err = me.discardWhitespace()
+	if err != nil {
+		return
+	}
+	var c rune
+    c, err = me.readRune()
     if err != nil {
-        panic(err)
+		return
     }
     switch c {
     case '(':
-        return me.newSyntaxToken(ListStart)
+        tok = me.newSyntaxToken(ListStart)
     case ')':
-        return me.newSyntaxToken(ListEnd)
+        tok = me.newSyntaxToken(ListEnd)
     case '\'':
-        return me.newSyntaxToken(QuoteType)
+        tok = me.newSyntaxToken(QuoteType)
+	default:
+		me.unreadRune()
+		tok = me.newAtom(me.readAtom())
     }
-    me.unreadRune()
-    return me.newAtom(me.readAtom())
+	return
 }
 
 func NewLexer(r *bufio.Reader) Lexer {
