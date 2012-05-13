@@ -1,7 +1,7 @@
 package meme
 
 type Func struct {
-	body  List
+	body  Evalable
 	fixed []string
 	rest  *string
 }
@@ -21,10 +21,10 @@ func (me *Func) Run(args List, outer Env) interface{} {
 	} else if !args.IsNull() {
 		panic(nil)
 	}
-	return applyBegin(me.body, env)
+	return Eval(me.body, env)
 }
 
-func NewFunc(fixed []string, rest *string, body List) *Func {
+func NewFunc(fixed []string, rest *string, body Evalable) *Func {
 	return &Func{
 		fixed: fixed,
 		rest:  rest,

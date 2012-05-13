@@ -15,10 +15,10 @@ func runReader(reader *bufio.Reader, env meme.Env) {
 		if data == nil {
 			break
 		}
-		code := data
+		code := meme.Analyze(data, env)
 		result := meme.Eval(code, env)
 		if !meme.IsVoid(result) {
-			log.Println(result.(meme.Printable))
+			log.Println(result)
 		}
 	}
 }

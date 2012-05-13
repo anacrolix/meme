@@ -2,12 +2,12 @@ package meme
 
 var builtins map[string]Applicable
 
-var specials map[string]func(List, Env) Node
+var specials map[string]func(List, Env) Evalable
 
 func init() {
-	specials = map[string]func(List, Env) Node{
-		"define": applyDefine,
-		"if":     applyIf,
+	specials = map[string]func(List, Env) Evalable{
+		"define": analyzeDefine,
+		"if":     analyzeIf,
 	}
 	builtins = map[string]Applicable{
 		"null?": NewPrimitive(applyNullQuery),
@@ -16,11 +16,23 @@ func init() {
 	}
 }
 
-func applyDefine(args List, env Env) Node {
-	var name Symbol
-	var value Node
+type define struct {
+	name  string
+	value Evalable
+}
+
+var _ Evalable = define{}
+
+func (me define) Eval(env Env) interface{} {
+	env.Define(me.name, Eval(me.value, env))
+	return Void
+}
+
+func analyzeDefine(args List, env Env) Evalable {
+	var nameSym Symbol
+	var value Evalable
 	if fmls, ok := args.Car().(List); ok {
-		name = fmls.Car().(Symbol)
+		nameSym = fmls.Car().(Symbol)
 		fmls = fmls.Cdr()
 		var addr Node
 		if fmls.Len() == 2 && fmls.Car().(Symbol).Value() == "." {
@@ -28,19 +40,21 @@ func applyDefine(args List, env Env) Node {
 		} else {
 			addr = fmls
 		}
-		value = applyLambda(NewPair(addr, args.Cdr()), env)
+		value = analyzeLambda(NewPair(addr, args.Cdr()), env)
 	} else {
-		name = args.Car().(Symbol)
+		nameSym = args.Car().(Symbol)
 		switch args.Len() {
 		case 1:
 		case 2:
-			value = args.Index(1).(Evalable).Eval(env)
+			value = args.Index(1).(Evalable)
 		default:
 			panic(nil)
 		}
 	}
-	env.Define(name.Value(), value)
-	return Void
+	return define{
+		nameSym.Value(),
+		value.(Evalable),
+	}
 }
 
 func parseFormals(fmls Node) (fixed []string, rest *string) {
@@ -65,31 +79,63 @@ func parseFormals(fmls Node) (fixed []string, rest *string) {
 	return
 }
 
-func applyBegin(args List, env Env) (ret Node) {
-	for !args.IsNull() {
-		ret = Eval(args.Car().(Evalable), env)
-		args = args.Cdr()
+type begin struct {
+	exps List
+}
+
+var _ Evalable = begin{}
+
+func (me begin) Eval(env Env) (ret interface{}) {
+	exps := me.exps
+	for !exps.IsNull() {
+		ret = Eval(exps.Car().(Evalable), env)
+		exps = exps.Cdr()
 	}
 	return
 }
 
-func applyLambda(args List, env Env) Node {
+func analyzeBegin(args List, env Env) Evalable {
+	return begin{
+		args.Map(func(a Node) Node {
+			return Analyze(a.(Parseable), env)
+		}),
+	}
+}
+
+func analyzeLambda(args List, env Env) Evalable {
 	if args.Len() < 2 {
 		panic(nil)
 	}
 	fixed, rest := parseFormals(args.Car())
-	return NewClosure(NewFunc(fixed, rest, args.Cdr()), env)
+	return NewFunc(fixed, rest, analyzeBegin(args.Cdr(), env))
 }
 
-func applyIf(args List, env Env) Node {
-	if args.Len() > 3 {
-		panic("too many arguments")
+type if_ struct {
+	test, conseq, alt Evalable
+}
+
+func analyzeIf(args List, env Env) Evalable {
+	var ret if_
+	ret.test = args.Car().(Evalable)
+	args = args.Cdr()
+	ret.conseq = args.Car().(Evalable)
+	args = args.Cdr()
+	if !args.IsNull() {
+		ret.alt = args.Car().(Evalable)
+		args = args.Cdr()
 	}
-	if Truth(Eval(args.Car().(Evalable), env)) {
-		return Eval(args.Index(1).(Evalable), env)
+	if !args.IsNull() {
+		panic("too many args to if")
 	}
-	if args.Len() == 3 {
-		return Eval(args.Index(2).(Evalable), env)
+	return ret
+}
+
+func (me if_) Eval(env Env) interface{} {
+	if Truth(Eval(me.test, env)) {
+		return Eval(me.conseq, env)
+	}
+	if me.alt != nil {
+		return Eval(me.alt, env)
 	}
 	return Void
 }

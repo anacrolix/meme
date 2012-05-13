@@ -42,11 +42,6 @@ func evalList(list List, env Env) List {
 }
 
 func (me Pair) Eval(env Env) interface{} {
-	if sym, ok := me.Car().(Symbol); ok {
-		if spec, ok := specials[sym.Value()]; ok {
-			return spec(me.Cdr(), env)
-		}
-	}
 	proc := Eval(me.Car().(Evalable), env).(Applier)
 	args := me.Cdr()
 	return Apply(proc, args, env)
