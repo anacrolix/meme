@@ -13,7 +13,24 @@ func init() {
 		"null?": NewPrimitive(applyNullQuery),
 		"+":     NewPrimitive(applyPlus),
 		"cdr":   NewPrimitive(applyCdr),
+		"<":     NewPrimitive(applyLessThan),
+		"-":     NewPrimitive(applyMinus),
 	}
+}
+
+func applyLessThan(args List, env Env) Node {
+	for {
+		a := args.Car()
+		args = args.Cdr()
+		b := args.Car()
+		if !a.(Comparable).Less(b) {
+			return False
+		}
+		if args.Cdr().IsNull() {
+			break
+		}
+	}
+	return True
 }
 
 type define struct {
@@ -40,7 +57,7 @@ func analyzeDefine(args List, env Env) Evalable {
 		} else {
 			addr = fmls
 		}
-		value = analyzeLambda(NewPair(addr, args.Cdr()), env)
+		value = analyzeLambda(Cons(addr, args.Cdr()), env)
 	} else {
 		nameSym = args.Car().(Symbol)
 		switch args.Len() {
@@ -55,6 +72,19 @@ func analyzeDefine(args List, env Env) Evalable {
 		nameSym.Value(),
 		value.(Evalable),
 	}
+}
+
+func applyMinus(args List, env Env) Node {
+	if args.Cdr().IsNull() {
+		return NewInt(-args.Car().(Int).Int64())
+	}
+	ll := args.Car().(Int).Int64()
+	args = args.Cdr()
+	for !args.IsNull() {
+		ll -= args.Car().(Int).Int64()
+		args = args.Cdr()
+	}
+	return NewInt(ll)
 }
 
 func parseFormals(fmls Node) (fixed []string, rest *string) {
@@ -116,12 +146,12 @@ type if_ struct {
 
 func analyzeIf(args List, env Env) Evalable {
 	var ret if_
-	ret.test = args.Car().(Evalable)
+	ret.test = Analyze(args.Car().(Parseable), env)
 	args = args.Cdr()
-	ret.conseq = args.Car().(Evalable)
+	ret.conseq = Analyze(args.Car().(Parseable), env)
 	args = args.Cdr()
 	if !args.IsNull() {
-		ret.alt = args.Car().(Evalable)
+		ret.alt = Analyze(args.Car().(Parseable), env)
 		args = args.Cdr()
 	}
 	if !args.IsNull() {

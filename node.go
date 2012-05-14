@@ -19,14 +19,17 @@ type Parseable interface {
 	Evalable
 }
 
+type Comparable interface {
+	Less(Node) bool
+}
+
 type Evalable Evaler
 
 type Printable interface {
 	Print(*Printer)
 }
 
-type Node interface {
-}
+type Node interface {}
 
 func printString(p Printable) string {
 	np := NewPrinter()

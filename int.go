@@ -16,6 +16,14 @@ func (me Int) Int64() int64 {
 	return me.val
 }
 
+func (me Int) Less(other Node) bool {
+	otherInt, ok := other.(Int)
+	if !ok {
+		panic(other)
+	}
+	return me.Int64() < otherInt.Int64()
+}
+
 func NewInt(val int64) Int {
 	return Int{val: val}
 }

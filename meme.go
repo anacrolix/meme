@@ -4,28 +4,31 @@ import (
 	"log"
 )
 
+var Trace = false
+
 func Truth(a Node) bool {
 	_, ok := a.(falseType)
 	return !ok
 }
 
 func Eval(a Evalable, env Env) (ret interface{}) {
-	log.Println("evaluating", a)
-	defer func() {
-		log.Println("evaluated", a, "->", ret)
-	}()
-	ret = a.Eval(env)
-	if ret == nil {
-		panic(nil)
+	if Trace {
+		log.Println("evaluating", a)
+		defer func() {
+			log.Println("evaluated", a, "->", ret)
+		}()
 	}
+	ret = a.Eval(env)
 	return
 }
 
 func Analyze(a Parseable, env Env) (ret Evalable) {
-	log.Println("analyzing", a)
-	defer func() {
-		log.Println("analyzed", a, "->", ret)
-	}()
+	if Trace {
+		log.Println("analyzing", a)
+		defer func() {
+			log.Println("analyzed", a, "->", ret)
+		}()
+	}
 	var list List
 	var ok bool
 	if list, ok = a.(List); !ok {
@@ -37,16 +40,24 @@ func Analyze(a Parseable, env Env) (ret Evalable) {
 			return spec(list.Cdr(), env)
 		}
 	}
-	return NewPair(proc, list.Cdr().Map(func(a Node) Node {
+	return Cons(proc, list.Cdr().Map(func(a Node) Node {
 		return Analyze(a.(Parseable), env)
 	}))
 }
 
 func Apply(a Applicable, args List, env Env) (ret Node) {
-	log.Println("applying", a, "to", args)
-	defer func() {
-		log.Println("applied", a, "to", args, "->", ret)
-	}()
+	if Trace {
+		log.Println("applying", a, "to", args)
+		defer func() {
+			log.Println("applied", a, "to", args, "->", ret)
+		}()
+	}
 	ret = a.Apply(args, env)
 	return
+}
+
+func evalList(a List, env Env) List {
+	return a.Map(func(a Node) Node {
+		return Eval(a.(Evalable), env)
+	})
 }

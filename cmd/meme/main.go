@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"meme"
 	"os"
+	"runtime/pprof"
 )
 
 func runReader(reader *bufio.Reader, env meme.Env) {
@@ -18,13 +20,33 @@ func runReader(reader *bufio.Reader, env meme.Env) {
 		code := meme.Analyze(data, env)
 		result := meme.Eval(code, env)
 		if !meme.IsVoid(result) {
-			log.Println(result)
+			fmt.Println(os.Stderr, result)
 		}
 	}
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var memprofile = flag.String("memprofile", "", "write heap profile to file")
+
 func main() {
 	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+		f.Close()
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		defer f.Close()
+	}
 	env := meme.NewTopEnv()
 	for _, name := range flag.Args() {
 		file, err := os.Open(name)

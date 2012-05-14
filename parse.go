@@ -24,7 +24,7 @@ func (me *parser) parseList() List {
 	if st, ok := me.tok.(SyntaxToken); ok && st.Type == ListEnd {
 		return Nil
 	}
-	return NewPair(me.parse(), me.parseList())
+	return Cons(me.parse(), me.parseList())
 }
 
 func (me *parser) parseAtom() Parseable {
