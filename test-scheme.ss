@@ -26,11 +26,12 @@
   (cond ((eq? a 2) 1)
         ((= 4 7) 2)
         (else 3)))
-(define! a 2)
+;(define! a 2)
+(set! a 2)
 (if (/= 1 (test-cond)) (error))
 (set! a 4)
-(if (/= 3 (test-cond)) (error))
-(undef a)
+(if (= 3 (test-cond)) (error))
+;(undef a)
 
 ; map
 (if (/= '(2 12 30) (map (lambda (x y) (* x y)) '(1 3 5) '(2 4 6))) (error))

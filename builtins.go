@@ -6,22 +6,39 @@ var specials map[string]func(List, Env) Evalable
 
 func init() {
 	specials = map[string]func(List, Env) Evalable{
-		"define": analyzeDefine,
-		"if":     analyzeIf,
-		"lambda": analyzeLambda,
-		"begin": analyzeBegin,
+		"define":   analyzeDefine,
+		"if":       analyzeIf,
+		"lambda":   analyzeLambda,
+		"begin":    analyzeBegin,
+		"defmacro": analyzeMacro,
+		"set!":     analyzeSetBang,
 	}
 	builtins = map[string]Applicable{
-		"null?": NewPrimitive(applyNullQuery),
 		"+":     NewPrimitive(applyPlus),
-		"cdr":   NewPrimitive(applyCdr),
-		"<":     NewPrimitive(applyLessThan),
 		"-":     NewPrimitive(applyMinus),
-		"eq?":	 NewPrimitive(applyEqQuery),
-		"=":	 NewPrimitive(applyEqQuery),
-		"car":	 NewPrimitive(applyCar),
+		"*":     NewPrimitive(applySplat),
+		"=":     NewPrimitive(applyEqQuery),
+		"<":     NewPrimitive(applyLessThan),
+		"eq?":   NewPrimitive(applyEqQuery),
+		"cons":  NewPrimitive(applyCons),
+		"null?": NewPrimitive(applyNullQuery),
+		"car":   NewPrimitive(applyCar),
+		"cdr":   NewPrimitive(applyCdr),
+		"pair?": NewPrimitive(applyPairQuery),
 		"apply": NewPrimitive(applyApply),
 	}
+}
+
+func analyzeMacro(args List, env Env) Evalable {
+	def := analyzeDefine(args, env).(define)
+	body := Eval(def.value, env).(Applicable)
+	if _, ok := specials[def.name]; ok {
+		panic(nil)
+	}
+	specials[def.name] = func(args List, env Env) Evalable {
+		return Analyze(Apply(body, args, env).(Parseable), env)
+	}
+	return NewQuote(Void)
 }
 
 func applyLessThan(args List, env Env) Node {
@@ -32,6 +49,7 @@ func applyLessThan(args List, env Env) Node {
 		if !a.(Comparable).Less(b) {
 			return False
 		}
+
 		if args.Cdr().IsNull() {
 			break
 		}
@@ -46,9 +64,36 @@ type define struct {
 
 var _ Evalable = define{}
 
-func (me define) Eval(env Env) interface{} {
+/*
+func (me define) Print(p *Printer) {
+	p.Atom("#(define")
+	p.Atom(me.name)
+	me.value.Print(p)
+	p.SyntaxToken(ListEnd)
+}
+*/
+
+func (me define) Eval(env Env) Node {
 	env.Define(me.name, Eval(me.value, env))
 	return Void
+}
+
+type setBang struct {
+	define
+}
+
+func (me *setBang) Eval(env Env) Node {
+	env.Set(me.name, Eval(me.value, env))
+	return Void
+}
+
+func analyzeSetBang(args List, env Env) Evalable {
+	return &setBang{
+		define{
+			args.Car().(Symbol).Value(),
+			Analyze(args.Index(1).(Parseable), env),
+		},
+	}
 }
 
 func analyzeDefine(args List, env Env) Evalable {
@@ -93,6 +138,19 @@ func applyMinus(args List, env Env) Node {
 	return NewInt(ll)
 }
 
+func applySplat(args List, env Env) Node {
+	v := args.Car().(Int).Int64()
+	args = args.Cdr()
+	for {
+		v *= args.Car().(Int).Int64()
+		args = args.Cdr()
+		if args.IsNull() {
+			break
+		}
+	}
+	return NewInt(v)
+}
+
 func parseFormals(fmls Node) (fixed []string, rest *string) {
 	if names, ok := fmls.(List); ok {
 		for !names.IsNull() {
@@ -121,7 +179,20 @@ type begin struct {
 
 var _ Evalable = begin{}
 
-func (me begin) Eval(env Env) (ret interface{}) {
+/*
+func (me begin) Print(p *Printer) {
+	p.SyntaxToken(ListStart)
+	p.Atom("#(begin)")
+	exps := me.exps
+	for !exps.IsNull() {
+		exps.Car().Print(p)
+		exps = exps.Cdr()
+	}
+	p.SyntaxToken(ListEnd)
+}
+*/
+
+func (me begin) Eval(env Env) (ret Node) {
 	exps := me.exps
 	for !exps.IsNull() {
 		ret = Eval(exps.Car().(Evalable), env)
@@ -150,6 +221,18 @@ type if_ struct {
 	test, conseq, alt Evalable
 }
 
+/*
+func (me if_) Print(p *Printer) {
+	p.Atom("#(if")
+	me.test.Print(p)
+	me.conseq.Print(p)
+	if me.alt != nil {
+		me.alt.Print(p)
+	}
+	p.SyntaxToken(ListEnd)
+}
+*/
+
 func analyzeIf(args List, env Env) Evalable {
 	var ret if_
 	ret.test = Analyze(args.Car().(Parseable), env)
@@ -166,7 +249,7 @@ func analyzeIf(args List, env Env) Evalable {
 	return ret
 }
 
-func (me if_) Eval(env Env) interface{} {
+func (me if_) Eval(env Env) Node {
 	if Truth(Eval(me.test, env)) {
 		return Eval(me.conseq, env)
 	}
@@ -221,17 +304,13 @@ func applyNullQuery(args List, env Env) Node {
 	return False
 }
 
-/*
-
-static Node *apply_cons(Node *const args[], int count, Env *env) {
-    if (count != 2) return NULL;
-    Pair *dec = pair_check(args[1]);
-    if (!dec) return NULL;
-    node_ref(args[0]);
-    node_ref(dec);
-    return pair_new(args[0], dec);
+func applyCons(args List, env Env) Node {
+	if args.Len() != 2 {
+		panic(nil)
+	}
+	return Cons(args.Car(), args.Index(1).(List))
 }
-*/
+
 func applyEqQuery(args List, env Env) Node {
 	a := args.Car().(Comparable)
 	args = args.Cdr()
@@ -264,11 +343,10 @@ static Node *apply_apply(Node *const args[const], int count, Env *env) {
 */
 
 func applyApply(args List, env Env) Node {
-	rest := args.Index(args.Len()-1).(List)
+	rest := args.Index(args.Len() - 1).(List)
 	newArgs := append(args.slice[1:len(args.slice)-1], rest.slice...)
 	return Apply(args.Car().(Applicable), List{newArgs}, env)
 }
-
 
 /*
 static Node *apply_defined_query(Node *const args[], int count, Env *env) {
@@ -289,55 +367,18 @@ static Node *apply_undef(Node *const args[], int count, Env *env) {
     return void_node;
 }
 
-static Node *apply_set_bang(Node *const args[], int count, Env *env) {
-    if (count != 2) return NULL;
-    Symbol *var = symbol_check(args[0]);
-    if (!var) return NULL;
-    Node *value = node_eval(args[1], env);
-    if (!value) return NULL;
-    if (!env_set(env, var, value)) {
-        node_unref(value);
-        return NULL;
-    }
-    node_ref(var);
-    node_ref(void_node);
-    return void_node;
-}
-
-typedef struct {
-    char const *name;
-    PrimitiveApplyFunc apply;
-} PrimitiveType;
-
-*/
-
-/*
-static PrimitiveType special_forms[] = {
-    {"lambda", apply_lambda},
-    {"if", apply_if},
-    {"__define", apply_builtin_define},
-    {"__set!", apply_set_bang},
-    {"__undef", apply_undef},
-    {"__defined?", apply_defined_query},
-};
-
 static PrimitiveType primitives[] = {
-    {"*", apply_splat},
     {"+", apply_plus},
     {"symbol?", apply_symbol_query},
-    {"<", less_than},
-    {"-", subtract},
-    {"pair?", is_pair},
-    {"list", apply_list},
-    {"car", apply_car},
-    {"cdr", apply_cdr},
-    {"null?", apply_null_query},
-    {"cons", apply_cons},
-    {"eq?", apply_eq_query},
-    {"=", apply_eq_query}, // TODO split =/ eqv? eq
-    {"begin", apply_begin},
-    {"apply", apply_apply},
-    {"macro", macro_new},
-    {"__quote", apply_quote},
 };
 */
+
+func applyPairQuery(args List, env Env) Node {
+	if !args.Cdr().IsNull() {
+		panic(nil)
+	}
+	if _, ok := args.Car().(List); ok {
+		return True
+	}
+	return False
+}

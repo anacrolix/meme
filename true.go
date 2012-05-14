@@ -6,7 +6,7 @@ func (me trueType) Apply([]Node, Env) Node {
 	panic("true is not an operator")
 }
 
-func (me trueType) Eval(Env) interface{} {
+func (me trueType) Eval(Env) Node {
 	return me
 }
 

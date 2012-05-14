@@ -12,7 +12,7 @@ func (me Symbol) Apply([]Node, Env) Node {
 	panic("symbols are not operators")
 }
 
-func (me Symbol) Eval(env Env) (ret interface{}) {
+func (me Symbol) Eval(env Env) (ret Node) {
 	ret = env.Find(me.val)
 	if ret == nil {
 		panic("symbol not found: " + me.val)
@@ -39,5 +39,6 @@ func (me Symbol) Print(p *Printer) {
 }
 
 func (me Symbol) Less(other Node) bool {
-	return me.val < other.(Symbol).val
+	sym, _ := other.(Symbol)
+	return me.val < sym.val
 }

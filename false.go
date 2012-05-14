@@ -4,7 +4,7 @@ type falseType struct{}
 
 var False falseType
 
-func (me falseType) Eval(Env) interface{} {
+func (me falseType) Eval(Env) Node {
 	return me
 }
 

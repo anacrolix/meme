@@ -48,7 +48,7 @@ func (me List) Map(f MapFunc) List {
 	return ret
 }
 
-func (me List) Eval(env Env) interface{} {
+func (me List) Eval(env Env) Node {
 	proc := Eval(me.slice[0].(Evalable), env).(Applicable)
 	return Apply(proc, evalList(me.Cdr(), env), env)
 }
@@ -63,11 +63,15 @@ func Cons(a Node, b List) List {
 }
 
 func (me List) Less(other Node) bool {
-	otherList := other.(List)
+	otherList, _ := other.(List)
 	for i := 0; i < me.Len() && i < otherList.Len(); i++ {
 		if !me.Index(i).(Comparable).Less(otherList.Index(i)) {
 			return false
 		}
 	}
 	return me.Len() < otherList.Len()
+}
+
+func (me List) String() string {
+	return printString(me)
 }

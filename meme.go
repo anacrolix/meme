@@ -4,14 +4,14 @@ import (
 	"log"
 )
 
-var Trace = false
+var Trace = true
 
 func Truth(a Node) bool {
 	_, ok := a.(falseType)
 	return !ok
 }
 
-func Eval(a Evalable, env Env) (ret interface{}) {
+func Eval(a Evalable, env Env) (ret Node) {
 	if Trace {
 		log.Println("evaluating", a)
 		defer func() {

@@ -1,5 +1,9 @@
 package meme
 
+import (
+	"fmt"
+)
+
 type Applier interface {
 	Apply(List, Env) Node
 }
@@ -10,26 +14,28 @@ type Expandable interface {
 	Expand(Env) Parseable
 }
 
-type Evaler interface {
-	Eval(Env) interface{}
+type Evalable interface {
+	Node
+	Eval(Env) Node
 }
 
 type Parseable interface {
-	Printable
 	Evalable
+	Printable
 }
 
 type Comparable interface {
+	Node
 	Less(Node) bool
 }
 
-type Evalable Evaler
-
 type Printable interface {
 	Print(*Printer)
+	fmt.Stringer
 }
 
-type Node interface{}
+type Node interface {
+}
 
 func printString(p Printable) string {
 	np := NewPrinter()

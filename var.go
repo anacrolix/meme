@@ -4,7 +4,7 @@ type Var struct {
 	val interface{}
 }
 
-func (me Var) Eval(Env) interface{} {
+func (me *Var) Eval(Env) interface{} {
 	return me.val
 }
 

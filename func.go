@@ -6,11 +6,35 @@ type Func struct {
 	rest  *string
 }
 
-func (me *Func) Eval(env Env) interface{} {
+func (me *Func) Eval(env Env) Node {
 	return NewClosure(me, env)
 }
 
-func (me *Func) Run(args List, outer Env) interface{} {
+/*
+func (me *Func) Print(p *Printer) {
+	p.SyntaxToken(ListStart)
+	p.Atom("#(lambda)")
+	if len(me.fixed) == 0 {
+		if me.rest == nil {
+			Nil.Print(p)
+		} else {
+			p.Atom(*me.rest)
+		}
+	} else {
+		p.SyntaxToken(ListStart)
+		for _, a := range me.fixed {
+			p.Atom(a)
+		}
+		if me.rest != nil {
+			p.Atom(".")
+			p.Atom(*me.rest)
+		}
+	}
+	me.body.Print(p)
+}
+*/
+
+func (me *Func) Run(args List, outer Env) Node {
 	env := NewMapEnv(outer)
 	for _, name := range me.fixed {
 		env.Define(name, args.Car())

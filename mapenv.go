@@ -1,13 +1,13 @@
 package meme
 
 type MapEnv struct {
-	vars  map[string]Var
+	vars  map[string]*Var
 	outer Env
 }
 
 func NewMapEnv(outer Env) *MapEnv {
 	return &MapEnv{
-		make(map[string]Var),
+		make(map[string]*Var),
 		outer,
 	}
 }
@@ -16,7 +16,7 @@ func (me *MapEnv) Define(name string, value interface{}) {
 	if _, ok := me.vars[name]; ok {
 		panic(nil)
 	}
-	me.vars[name] = Var{value}
+	me.vars[name] = &Var{value}
 }
 
 func (me *MapEnv) Find(name string) interface{} {
@@ -24,4 +24,12 @@ func (me *MapEnv) Find(name string) interface{} {
 		return var_.val
 	}
 	return me.outer.Find(name)
+}
+
+func (me *MapEnv) Set(name string, value interface{}) {
+	if var_, ok := me.vars[name]; ok {
+		var_.Set(value)
+		return
+	}
+	me.outer.Set(name, value)
 }

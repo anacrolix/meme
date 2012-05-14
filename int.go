@@ -6,7 +6,7 @@ type Int struct {
 
 var _ Evalable = Int{}
 
-func (me Int) Eval(Env) interface{} {
+func (me Int) Eval(Env) Node {
 	return me
 }
 
@@ -33,4 +33,3 @@ func (me Int) String() string {
 func (me Int) Print(p *Printer) {
 	p.Atom(me.val)
 }
-

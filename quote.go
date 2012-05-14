@@ -1,14 +1,14 @@
 package meme
 
 type Quote struct {
-	quoted interface{}
+	quoted Node
 }
 
-func (me Quote) Eval(env Env) interface{} {
+func (me Quote) Eval(env Env) Node {
 	return me.quoted
 }
 
-func NewQuote(node interface{}) Quote {
+func NewQuote(node Node) Quote {
 	return Quote{
 		quoted: node,
 	}
