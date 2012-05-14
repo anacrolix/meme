@@ -37,7 +37,6 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
-		f.Close()
 	}
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
