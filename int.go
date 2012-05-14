@@ -4,9 +4,7 @@ type Int struct {
 	val int64
 }
 
-func (me Int) Apply([]Node, Env) Node {
-	panic("integers are not applicable")
-}
+var _ Evalable = Int{}
 
 func (me Int) Eval(Env) interface{} {
 	return me
@@ -36,6 +34,3 @@ func (me Int) Print(p *Printer) {
 	p.Atom(me.val)
 }
 
-func (me Int) Expand(Env) Parseable {
-	return me
-}
