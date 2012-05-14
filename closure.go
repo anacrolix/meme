@@ -8,7 +8,7 @@ type Closure struct {
 var _ Applicable = &Closure{}
 
 func (me *Closure) Apply(args List, env Env) Node {
-	return me.Func.Run(evalList(args, env), me.Env)
+	return me.Func.Run(args, me.Env)
 }
 
 func NewClosure(func_ *Func, env Env) *Closure {

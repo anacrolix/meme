@@ -13,7 +13,8 @@
 ; begin
 (if (not (= 3 (begin 1 2 3)))
   (error))
-(if (not (= 6 ((lambda a (apply begin a)) 2 4 6))) (error))
+; begin is a special, this doesn't have to make sense
+;(if (not (= 6 ((lambda a (apply begin a)) 2 4 6))) (error))
 
 ; define formals
 (define (d . e) e)

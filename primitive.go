@@ -9,7 +9,7 @@ type primitive struct {
 var _ Applicable = primitive{}
 
 func (me primitive) Apply(args List, env Env) Node {
-	return me.apply(evalList(args, env), env)
+	return me.apply(args, env)
 }
 
 func (me primitive) Eval(Env) interface{} {

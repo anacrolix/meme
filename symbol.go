@@ -6,6 +6,8 @@ type Symbol struct {
 	val string
 }
 
+var _ Comparable = Symbol{}
+
 func (me Symbol) Apply([]Node, Env) Node {
 	panic("symbols are not operators")
 }
@@ -34,4 +36,8 @@ func (me Symbol) String() string {
 
 func (me Symbol) Print(p *Printer) {
 	p.Atom(me.val)
+}
+
+func (me Symbol) Less(other Node) bool {
+	return me.val < other.(Symbol).val
 }

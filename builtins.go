@@ -8,6 +8,8 @@ func init() {
 	specials = map[string]func(List, Env) Evalable{
 		"define": analyzeDefine,
 		"if":     analyzeIf,
+		"lambda": analyzeLambda,
+		"begin": analyzeBegin,
 	}
 	builtins = map[string]Applicable{
 		"null?": NewPrimitive(applyNullQuery),
@@ -15,6 +17,10 @@ func init() {
 		"cdr":   NewPrimitive(applyCdr),
 		"<":     NewPrimitive(applyLessThan),
 		"-":     NewPrimitive(applyMinus),
+		"eq?":	 NewPrimitive(applyEqQuery),
+		"=":	 NewPrimitive(applyEqQuery),
+		"car":	 NewPrimitive(applyCar),
+		"apply": NewPrimitive(applyApply),
 	}
 }
 
@@ -63,14 +69,14 @@ func analyzeDefine(args List, env Env) Evalable {
 		switch args.Len() {
 		case 1:
 		case 2:
-			value = args.Index(1).(Evalable)
+			value = Analyze(args.Index(1).(Parseable), env)
 		default:
 			panic(nil)
 		}
 	}
 	return define{
 		nameSym.Value(),
-		value.(Evalable),
+		value,
 	}
 }
 
@@ -170,23 +176,13 @@ func (me if_) Eval(env Env) interface{} {
 	return Void
 }
 
-/*
-static Node *apply_car(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Pair *pair = pair_check(*args);
-    if (!pair) {
-        fprintf(stderr, "expected a pair: ");
-        node_print_file(*args, stderr);
-        fputc('\n', stderr);
-        return NULL;
-    }
-    Node *ret = pair->addr;
-    // this would make the pair the nil type, which has no car
-    if (ret) node_ref(ret);
-    return ret;
+func applyCar(args List, env Env) Node {
+	if args.Len() != 1 {
+		panic(nil)
+	}
+	return args.Car().(List).Car()
 }
 
-*/
 func applyCdr(args List, env Env) Node {
 	if args.Len() != 1 {
 		panic(nil)
@@ -235,24 +231,20 @@ static Node *apply_cons(Node *const args[], int count, Env *env) {
     node_ref(dec);
     return pair_new(args[0], dec);
 }
-
-static Node *apply_eq_query(Node *const args[], int count, Env *env) {
-    if (count != 2) return NULL;
-    Node *ret;
-    switch (node_compare(args[0], args[1])) {
-    case NODE_CMP_ERR:
-        ret = NULL;
-        break;
-    case NODE_CMP_EQ:
-        ret = true_node;
-        break;
-    default:
-        ret = false_node;
-    }
-    if (ret) node_ref(ret);
-    return ret;
-}
 */
+func applyEqQuery(args List, env Env) Node {
+	a := args.Car().(Comparable)
+	args = args.Cdr()
+	b := args.Car().(Comparable)
+	args = args.Cdr()
+	if !args.IsNull() {
+		panic(nil)
+	}
+	if a.Less(b) || b.Less(a) {
+		return False
+	}
+	return True
+}
 
 /*
 // TODO test crash for (apply f)
@@ -269,13 +261,16 @@ static Node *apply_apply(Node *const args[const], int count, Env *env) {
     }
     return node_apply(*args, args1, argc1, env);
 }
+*/
 
-static Node *apply_begin(Node *const args[], int count, Env *env) {
-    if (count < 1) return NULL;
-    node_ref(args[count-1]);
-    return args[count-1];
+func applyApply(args List, env Env) Node {
+	rest := args.Index(args.Len()-1).(List)
+	newArgs := append(args.slice[1:len(args.slice)-1], rest.slice...)
+	return Apply(args.Car().(Applicable), List{newArgs}, env)
 }
 
+
+/*
 static Node *apply_defined_query(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;
     Symbol *var = symbol_check(*args);
@@ -284,16 +279,6 @@ static Node *apply_defined_query(Node *const args[], int count, Env *env) {
     node_ref(ret);
     return ret;
 }
-
-static Node *apply_quote(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Quote *quote = NODE_NEW(*quote);
-    node_init(quote, &quote_type);
-    quote->quoted = *args;
-    node_ref(quote->quoted);
-    return quote;
-}
-
 
 static Node *apply_undef(Node *const args[], int count, Env *env) {
     if (count != 1) return NULL;

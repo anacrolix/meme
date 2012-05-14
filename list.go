@@ -30,7 +30,7 @@ func (me List) IsNull() bool {
 	return len(me.slice) == 0
 }
 
-func (me *List) Index(i uint) Node {
+func (me *List) Index(i int) Node {
 	return me.slice[i]
 }
 
@@ -50,7 +50,7 @@ func (me List) Map(f MapFunc) List {
 
 func (me List) Eval(env Env) interface{} {
 	proc := Eval(me.slice[0].(Evalable), env).(Applicable)
-	return Apply(proc, List{me.slice[1:]}, env)
+	return Apply(proc, evalList(me.Cdr(), env), env)
 }
 
 func Cons(a Node, b List) List {
@@ -60,4 +60,14 @@ func Cons(a Node, b List) List {
 		panic(nil)
 	}
 	return ret
+}
+
+func (me List) Less(other Node) bool {
+	otherList := other.(List)
+	for i := 0; i < me.Len() && i < otherList.Len(); i++ {
+		if !me.Index(i).(Comparable).Less(otherList.Index(i)) {
+			return false
+		}
+	}
+	return me.Len() < otherList.Len()
 }
