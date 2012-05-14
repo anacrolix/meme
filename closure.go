@@ -5,18 +5,14 @@ type Closure struct {
 	Func *Func
 }
 
-var _ Applicable = Closure{}
+var _ Applicable = &Closure{}
 
-func (Closure) Eval(Env) Node {
-	panic("cannot evaluate a closure")
-}
-
-func (me Closure) Apply(args List, env Env) Node {
+func (me *Closure) Apply(args List, env Env) Node {
 	return me.Func.Run(evalList(args, env), me.Env)
 }
 
-func NewClosure(func_ *Func, env Env) Closure {
-	return Closure{
+func NewClosure(func_ *Func, env Env) *Closure {
+	return &Closure{
 		Env:  env,
 		Func: func_,
 	}

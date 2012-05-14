@@ -61,4 +61,3 @@ func Cons(a Node, b List) List {
 	}
 	return ret
 }
-
