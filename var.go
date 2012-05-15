@@ -4,7 +4,10 @@ type Var struct {
 	val interface{}
 }
 
-func (me *Var) Eval(Env) interface{} {
+func (me *Var) Eval(Env) Node {
+	if me.val == nil {
+		panic("unset var")
+	}
 	return me.val
 }
 
