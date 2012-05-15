@@ -1,10 +1,29 @@
 # About
 
-meme is a minimal scheme. It's implemented in C, has GC, and should express reasonable TCO. Run the examples like so:
+meme is a minimal scheme. It's implemented in Go.
 
-    $ ./meme fact.w
-    5040
+# Install
 
+Build and install the latest meme like so:
+
+	$ go get -u bitbucket.org/anacrolix/meme/cmd/meme
+
+Don't forget to add the first GOPATH dir to your PATH.
+
+Run the tests:
+
+    $ cd "$GOPATH"/bitbucket.org/anacrolix/meme
+    $ meme scheme.ss python.ss test-scheme.ss
+
+scheme.ss implements higher level scheme primitives in terms of meme's builtins. python.ss is currently required for the combinations test.
+
+# Benchmark
+
+The current prefered benchmark is the Ackermann-Peter test. It resides in ackermann.ss in the top level source dir. Modify the parameters on the last line to taste.
+
+	$ time meme scheme.ss ackermann.ss
+
+Performance is similar to a naive Scala implementation of Scheme at time of writing and about 5x slower than the original C implementation of meme.
 
 # Special forms
 
@@ -31,13 +50,10 @@ Make sure to set G_SLICE=always-malloc, and possibly G_DEBUG=gc-friendly in the 
 
 # TODO
 
- * Decide on the "nil" type. Void, empty, (), and others are all very similar. 
  * Use libreadline.
  * Use GMP for numbers.
  * Reintroduce tail call optimization.
  * Possible optimization: reclaim empty envs if they're only referenced by other environments.
  * Ditch hash tables in environments (except perhaps the top level one?)
- * Use slice allocator for pairs, and possibly other types
  * Cut back on unneeded loop detections.
- * Remove a lot of null checks by implementing "default" behaviours for all types.
- * Find out why slicing isn't as fast as raw malloc.
+ * Implement read and print.
