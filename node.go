@@ -4,11 +4,9 @@ import (
 	"fmt"
 )
 
-type Applier interface {
+type Applicable interface {
 	Apply(List, Env) Node
 }
-
-type Applicable Applier
 
 type Expandable interface {
 	Expand(Env) Parseable
