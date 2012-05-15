@@ -12,24 +12,18 @@ func NewMapEnv(outer Env) *MapEnv {
 	}
 }
 
-func (me *MapEnv) Define(name string, value Node) {
+func (me *MapEnv) Define(name string) *Var {
 	if _, ok := me.vars[name]; ok {
-		panic(nil)
+		panic("already defined: " + name)
 	}
-	me.vars[name] = &Var{value}
+	ret := &Var{}
+	me.vars[name] = ret
+	return ret
 }
 
-func (me *MapEnv) Find(name string) Node {
-	if var_, ok := me.vars[name]; ok {
-		return var_.val
+func (me *MapEnv) Find(name string) *Var {
+	if ret, ok := me.vars[name]; ok {
+		return ret
 	}
 	return me.outer.Find(name)
-}
-
-func (me *MapEnv) Set(name string, value Node) {
-	if var_, ok := me.vars[name]; ok {
-		var_.Set(value)
-		return
-	}
-	me.outer.Set(name, value)
 }

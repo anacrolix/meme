@@ -4,6 +4,10 @@ import (
 	"fmt"
 )
 
+type Analyzer interface {
+	Analyze(List, Env) Evalable
+}
+
 type Applicable interface {
 	Apply(List, Env) Node
 }
@@ -13,7 +17,6 @@ type Expandable interface {
 }
 
 type Evalable interface {
-	Node
 	Eval(Env) Node
 }
 

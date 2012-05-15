@@ -37,11 +37,11 @@ func (me *Func) Print(p *Printer) {
 func (me *Func) Run(args List, outer Env) Node {
 	env := NewMapEnv(outer)
 	for _, name := range me.fixed {
-		env.Define(name, args.Car())
+		env.Define(name).Set(args.Car())
 		args = args.Cdr()
 	}
 	if me.rest != nil {
-		env.Define(*me.rest, args)
+		env.Define(*me.rest).Set(args)
 	} else if !args.IsNull() {
 		panic(nil)
 	}

@@ -13,9 +13,13 @@ func (me Symbol) Apply([]Node, Env) Node {
 }
 
 func (me Symbol) Eval(env Env) (ret Node) {
-	ret = env.Find(me.val)
-	if ret == nil {
+	var_ := env.Find(me.val)
+	if var_ == nil {
 		panic("symbol not found: " + me.val)
+	}
+	ret = var_.Get()
+	if ret == nil {
+		panic("var unset: " + me.val)
 	}
 	return
 }

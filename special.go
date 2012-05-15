@@ -1,5 +1,3 @@
 package meme
 
-type Special interface {
-	Apply(List, Env) Parseable
-}
+type Special Analyzer

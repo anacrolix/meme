@@ -2,10 +2,16 @@ package meme
 
 import (
 	"errors"
+	"flag"
+	"fmt"
 	"log"
 )
 
-var Trace = false
+var Trace bool
+
+func init() {
+	flag.BoolVar(&Trace, "trace", false, "enable tracing logs")
+}
 
 var TypeError = errors.New("type error")
 
@@ -18,7 +24,7 @@ func Eval(a Evalable, env Env) (ret Node) {
 	if Trace {
 		log.Println("evaluating", a)
 		defer func() {
-			log.Println("evaluated", a, "->", ret)
+			log.Println("evaluated", fmt.Sprintf("%#v", a), "->", ret)
 		}()
 	}
 	ret = a.Eval(env)
@@ -39,8 +45,11 @@ func Analyze(a Parseable, env Env) (ret Evalable) {
 	}
 	proc := Analyze(list.Car().(Parseable), env)
 	if sym, ok := proc.(Symbol); ok {
-		if spec, ok := specials[sym.Value()]; ok {
-			return spec(list.Cdr(), env)
+		var_ := env.Find(sym.Value())
+		if var_ != nil {
+			if spec, ok := var_.Get().(Special); ok {
+				return spec.Analyze(list.Cdr(), env)
+			}
 		}
 	}
 	return Cons(proc, list.Cdr().Map(func(a Node) Node {

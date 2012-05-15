@@ -1,44 +1,57 @@
 package meme
 
-var builtins map[string]Applicable
+import "fmt"
 
-var specials map[string]func(List, Env) Evalable
+var builtins = map[string]Node{}
 
 func init() {
-	specials = map[string]func(List, Env) Evalable{
-		"define":   analyzeDefine,
+	for name, f := range map[string]func(List, Env) Evalable{
+		"__define": analyzeDefine,
 		"if":       analyzeIf,
 		"lambda":   analyzeLambda,
 		"begin":    analyzeBegin,
-		"defmacro": analyzeMacro,
 		"set!":     analyzeSetBang,
+	} {
+		builtins[name] = builtinSpecial{name, f}
 	}
-	builtins = map[string]Applicable{
-		"+":     NewPrimitive(applyPlus),
-		"-":     NewPrimitive(applyMinus),
-		"*":     NewPrimitive(applySplat),
-		"=":     NewPrimitive(applyEqQuery),
-		"<":     NewPrimitive(applyLessThan),
-		"eq?":   NewPrimitive(applyEqQuery),
-		"cons":  NewPrimitive(applyCons),
-		"null?": NewPrimitive(applyNullQuery),
-		"car":   NewPrimitive(applyCar),
-		"cdr":   NewPrimitive(applyCdr),
-		"pair?": NewPrimitive(applyPairQuery),
-		"apply": NewPrimitive(applyApply),
+	for name, f := range map[string]func(List, Env) Node{
+		"+":       applyPlus,
+		"-":       applyMinus,
+		"*":       applySplat,
+		"=":       applyEqQuery,
+		"<":       applyLessThan,
+		"eq?":     applyEqQuery,
+		"cons":    applyCons,
+		"null?":   applyNullQuery,
+		"car":     applyCar,
+		"cdr":     applyCdr,
+		"pair?":   applyPairQuery,
+		"apply":   applyApply,
+		"__macro": applyMacro,
+	} {
+		builtins[name] = primitive{f}
 	}
 }
 
-func analyzeMacro(args List, env Env) Evalable {
-	def := analyzeDefine(args, env).(define)
-	body := Eval(def.value, env).(Applicable)
-	if _, ok := specials[def.name]; ok {
+type builtinSpecial struct {
+	name    string
+	analyze func(List, Env) Evalable
+}
+
+func (me builtinSpecial) Print(p *Printer) {
+	p.Atom(fmt.Sprintf("#(%s", me.name))
+	p.SyntaxToken(ListEnd)
+}
+
+func (me builtinSpecial) Analyze(args List, env Env) Evalable {
+	return me.analyze(args, env)
+}
+
+func applyMacro(args List, env Env) Node {
+	if args.Len() != 1 {
 		panic(nil)
 	}
-	specials[def.name] = func(args List, env Env) Evalable {
-		return Analyze(Apply(body, args, env).(Parseable), env)
-	}
-	return NewQuote(Void)
+	return Macro{args.Car().(Applicable)}
 }
 
 func applyLessThan(args List, env Env) Node {
@@ -57,8 +70,7 @@ func applyLessThan(args List, env Env) Node {
 }
 
 type define struct {
-	name  string
-	value Evalable
+	name string
 }
 
 var _ Evalable = define{}
@@ -73,54 +85,46 @@ func (me define) Print(p *Printer) {
 */
 
 func (me define) Eval(env Env) Node {
-	env.Define(me.name, Eval(me.value, env))
+	env.Define(me.name)
 	return Void
 }
 
 type setBang struct {
-	define
+	name  string
+	value Evalable
 }
 
-func (me *setBang) Eval(env Env) Node {
-	env.Set(me.name, Eval(me.value, env))
+func (me setBang) Eval(env Env) Node {
+	env.Find(me.name).Set(Eval(me.value, env))
 	return Void
 }
 
 func analyzeSetBang(args List, env Env) Evalable {
-	return &setBang{
-		define{
-			args.Car().(Symbol).Value(),
-			Analyze(args.Index(1).(Parseable), env),
-		},
+	return setBang{
+		args.Car().(Symbol).Value(),
+		Analyze(args.Index(1).(Parseable), env),
 	}
 }
 
 func analyzeDefine(args List, env Env) Evalable {
-	var nameSym Symbol
 	var value Evalable
-	if fmls, ok := args.Car().(List); ok {
-		nameSym = fmls.Car().(Symbol)
-		fmls = fmls.Cdr()
-		var addr Node
-		if fmls.Len() == 2 && fmls.Car().(Symbol).Value() == "." {
-			addr = fmls.Index(1)
-		} else {
-			addr = fmls
-		}
-		value = analyzeLambda(Cons(addr, args.Cdr()), env)
-	} else {
-		nameSym = args.Car().(Symbol)
-		switch args.Len() {
-		case 1:
-		case 2:
-			value = Analyze(args.Index(1).(Parseable), env)
-		default:
-			panic(nil)
-		}
+	name := args.Car().(Symbol).Value()
+	switch args.Len() {
+	case 1:
+	case 2:
+		value = Analyze(args.Index(1).(Parseable), env)
+	default:
+		panic(nil)
 	}
-	return define{
-		nameSym.Value(),
-		value,
+	if value == nil {
+		return define{name}
+	}
+	return begin{
+		define{name},
+		setBang{
+			name,
+			value,
+		},
 	}
 }
 
@@ -172,9 +176,7 @@ func parseFormals(fmls Node) (fixed []string, rest *string) {
 	return
 }
 
-type begin struct {
-	exps List
-}
+type begin []Evalable
 
 var _ Evalable = begin{}
 
@@ -192,20 +194,19 @@ func (me begin) Print(p *Printer) {
 */
 
 func (me begin) Eval(env Env) (ret Node) {
-	exps := me.exps
-	for !exps.IsNull() {
-		ret = Eval(exps.Car().(Evalable), env)
-		exps = exps.Cdr()
+	for _, stmt := range me {
+		ret = Eval(stmt, env)
 	}
 	return
 }
 
 func analyzeBegin(args List, env Env) Evalable {
-	return begin{
-		args.Map(func(a Node) Node {
-			return Analyze(a.(Parseable), env)
-		}),
+	ret := begin{}
+	for !args.IsNull() {
+		ret = append(ret, Analyze(args.Car().(Parseable), env))
+		args = args.Cdr()
 	}
+	return ret
 }
 
 func analyzeLambda(args List, env Env) Evalable {
