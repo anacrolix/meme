@@ -3,6 +3,7 @@ package meme
 type MapFunc func(Node) Node
 
 var _ Parseable = List{}
+var _ Comparable = List{}
 
 type List struct {
 	slice []Node
@@ -62,14 +63,16 @@ func Cons(a Node, b List) List {
 	return ret
 }
 
-func (me List) Less(other Node) bool {
-	otherList, _ := other.(List)
-	for i := 0; i < me.Len() && i < otherList.Len(); i++ {
-		if !me.Index(i).(Comparable).Less(otherList.Index(i)) {
-			return false
+func (me List) Less(other Node) (less bool, err error) {
+	if otherList, ok := other.(List); ok {
+		for i := 0; i < me.Len() && i < otherList.Len(); i++ {
+			if less, _ := me.Index(i).(Comparable).Less(otherList.Index(i)); !less {
+				return false, nil
+			}
 		}
+		return me.Len() < otherList.Len(), nil
 	}
-	return me.Len() < otherList.Len()
+	return false, TypeError
 }
 
 func (me List) String() string {

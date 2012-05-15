@@ -38,7 +38,9 @@ func (me Symbol) Print(p *Printer) {
 	p.Atom(me.val)
 }
 
-func (me Symbol) Less(other Node) bool {
-	sym, _ := other.(Symbol)
-	return me.val < sym.val
+func (me Symbol) Less(other Node) (less bool, err error) {
+	if sym, ok := other.(Symbol); ok {
+		return me.val < sym.val, nil
+	}
+	return false, TypeError
 }

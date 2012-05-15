@@ -26,7 +26,7 @@ type Parseable interface {
 
 type Comparable interface {
 	Node
-	Less(Node) bool
+	Less(Node) (bool, error)
 }
 
 type Printable interface {

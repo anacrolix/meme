@@ -46,10 +46,9 @@ func applyLessThan(args List, env Env) Node {
 		a := args.Car()
 		args = args.Cdr()
 		b := args.Car()
-		if !a.(Comparable).Less(b) {
+		if less, _ := a.(Comparable).Less(b); !less {
 			return False
 		}
-
 		if args.Cdr().IsNull() {
 			break
 		}
@@ -319,8 +318,27 @@ func applyEqQuery(args List, env Env) Node {
 	if !args.IsNull() {
 		panic(nil)
 	}
-	if a.Less(b) || b.Less(a) {
+	less, err := a.Less(b)
+	if less {
 		return False
+	}
+	switch err {
+	case nil:
+	case TypeError:
+		return False
+	default:
+		panic(err)
+	}
+	less, err = b.Less(a)
+	if less {
+		return False
+	}
+	switch err {
+	case nil:
+	case TypeError:
+		return False
+	default:
+		panic(err)
 	}
 	return True
 }

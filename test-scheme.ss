@@ -30,7 +30,7 @@
 (set! a 2)
 (if (/= 1 (test-cond)) (error))
 (set! a 4)
-(if (= 3 (test-cond)) (error))
+(if (/= 3 (test-cond)) (error))
 ;(undef a)
 
 ; map

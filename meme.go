@@ -1,10 +1,13 @@
 package meme
 
 import (
+	"errors"
 	"log"
 )
 
-var Trace = true
+var Trace = false
+
+var TypeError = errors.New("type error")
 
 func Truth(a Node) bool {
 	_, ok := a.(falseType)
