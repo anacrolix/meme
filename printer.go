@@ -19,7 +19,7 @@ func NewPrinter() Printer {
 
 func (me *Printer) startToken(tt uint) {
 	switch me.lastType {
-	case InvalidToken, ListStart:
+	case InvalidToken, ListStart, QuoteType:
 	case ListEnd, AtomType:
 		if tt != ListEnd {
 			me.Space()
@@ -46,6 +46,8 @@ func (me *Printer) SyntaxToken(typ uint) {
 		me.buf.WriteByte('(')
 	case ListEnd:
 		me.buf.WriteByte(')')
+	case QuoteType:
+		me.buf.WriteByte('\'')
 	default:
 		panic(typ)
 	}
