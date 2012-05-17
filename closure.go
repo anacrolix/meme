@@ -7,8 +7,9 @@ import (
 type Closure struct {
 	Env    Env
 	body   Evalable
-	func_ *Func
 	locals []string
+	fixed int
+	rest bool
 }
 
 var _ Applicable = &Closure{}
@@ -19,19 +20,19 @@ func (me Closure) Print(p *Printer) {
 
 func (me Closure) Apply(args List, outer Env) Node {
 	env := NewFastEnv(outer)
-	fixed := me.func_.fixed
-	rest := me.func_.rest
-	for _, name := range fixed {
-		env.define(name).Set(args.Car())
+	i := 0
+	for ; i < me.fixed; i++ {
+		env.define(me.locals[i]).Set(args.Car())
 		args = args.Cdr()
 	}
-	if rest != nil {
-		env.define(*rest).Set(args)
+	if me.rest {
+		env.define(me.locals[i]).Set(args)
+		i++
 	} else if !args.IsNull() {
 		panic("too many args given")
 	}
-	for _, name := range me.locals {
-		env.define(name)
+	for ; i < len(me.locals); i++ {
+		env.define(me.locals[i])
 	}
 	return Eval(me.body, env)
 }
@@ -61,7 +62,12 @@ func NewClosure(func_ *Func, env Env) Closure {
 	log.Println("making closure from", SprintNode(func_))
 	ret := Closure{
 		Env:   env,
-		func_: func_,
+		fixed: len(func_.fixed),
+		rest: func_.rest != nil,
+		locals: append(func_.fixed),
+	}
+	if func_.rest != nil {
+		ret.locals = append(ret.locals, *func_.rest)
 	}
 	var rwf RewriteFunc
 	rwf = func(node Node) Node {
