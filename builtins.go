@@ -236,6 +236,17 @@ type if_ struct {
 	test, conseq, alt Evalable
 }
 
+var _ Rewritable = if_{}
+
+func (me if_) Rewrite(f RewriteFunc) Node {
+	me.test = f(me.test).(Evalable)
+	me.conseq = f(me.conseq).(Evalable)
+	if me.alt != nil {
+		me.alt = f(me.alt).(Evalable)
+	}
+	return me
+}
+
 func (me if_) Print(p *Printer) {
 	p.Atom("#(if")
 	me.test.Print(p)

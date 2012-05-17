@@ -1,23 +1,17 @@
 package meme
 
 type FastEnv struct {
-	vars  map[string]*Var
+	vars  []*Var
 	outer Env
+	closure *Closure
 }
 
-func NewFastEnv(outer Env) FastEnv {
-	return FastEnv{
-		make(map[string]*Var),
+func NewFastEnv(outer Env, locals int, closure *Closure) FastEnv {
+	ret := FastEnv{
+		make([]*Var, locals),
 		outer,
+		closure,
 	}
-}
-
-func (me FastEnv) define(name string) *Var {
-	if _, ok := me.vars[name]; ok {
-		panic("already defined: " + name)
-	}
-	ret := &Var{}
-	me.vars[name] = ret
 	return ret
 }
 
@@ -26,8 +20,8 @@ func (me FastEnv) Define(name string) *Var {
 }
 
 func (me FastEnv) Find(name string) *Var {
-	if ret, ok := me.vars[name]; ok {
-		return ret
+	if index, ok := me.closure.names[name]; ok {
+		return me.vars[index]
 	}
 	return me.outer.Find(name)
 }

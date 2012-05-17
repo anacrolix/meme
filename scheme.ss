@@ -53,6 +53,10 @@
 (define (map-unary f p)
   (fold-right (lambda (head tail) (cons (f head) tail)) '() p))
 
+(define (map f . is)
+  (define heads (lambda (a) (list-comp car a)))
+  (define tails (lambda (a) (list-comp cdr a)))
+  (if (null? (car is)) '() (cons (apply f (heads is)) (apply map f (tails is)))))
 (defmacro (let bindings body1 . bodyn)
   (cons 
     (cons 'lambda (cons (map car bindings) (cons body1 bodyn)))
@@ -60,8 +64,4 @@
         
 (define (list-comp f lst)
   (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))
-(define (map f . is)
-  (define heads (lambda (a) (list-comp car a)))
-  (define tails (lambda (a) (list-comp cdr a)))
-  (if (null? (car is)) '() (cons (apply f (heads is)) (apply map f (tails is)))))
 
