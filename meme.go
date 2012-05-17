@@ -43,8 +43,14 @@ func Rewrite(node Node, f RewriteFunc) (ret Node) {
 			log.Println("rewrote", SprintNode(node), "->", SprintNode(ret))
 		}()
 	}
+	ret = f(node)
+	if ret != nil {
+		return
+	}
 	if rw, ok := node.(Rewritable); ok {
-		return rw.Rewrite(f)
+		return rw.Rewrite(func (n Node) Node {
+			return Rewrite(n, f)
+		})
 	}
 	return node
 }

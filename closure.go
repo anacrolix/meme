@@ -40,9 +40,9 @@ func (me Closure) Apply(args List, outer Env) Node {
 func rewriteBegins(node Node) Node {
 	switch val := node.(type) {
 	case begin:
-		exps := []Evalable{}
+		exps := make([]Evalable, 0, len(val))
 		for _, e := range val {
-			e1 := rewriteBegins(e).(Evalable)
+			e1 := Rewrite(e, rewriteBegins).(Evalable)
 			if beg, ok := e1.(begin); ok {
 				exps = append(exps, beg...)
 			} else {
@@ -51,11 +51,10 @@ func rewriteBegins(node Node) Node {
 		}
 		if len(exps) == 1 {
 			return exps[0]
-		} else {
-			return begin(exps)
 		}
+		return begin(exps)
 	}
-	return Rewrite(node, rewriteBegins)
+	return nil
 }
 
 func NewClosure(func_ *Func, env Env) Closure {
@@ -69,17 +68,15 @@ func NewClosure(func_ *Func, env Env) Closure {
 	if func_.rest != nil {
 		ret.locals = append(ret.locals, *func_.rest)
 	}
-	var rwf RewriteFunc
-	rwf = func(node Node) Node {
+	ret.body = Rewrite(func_.body, func(node Node) Node {
 		switch val := node.(type) {
 		case define:
 			ret.locals = append(ret.locals, val.name)
 			return NewQuote(Void)
 		}
-		return Rewrite(node, rwf)
-	}
-	ret.body = rwf(func_.body).(Evalable)
+		return nil
+	}).(Evalable)
 	log.Println("closure locals:", ret.locals)
-	ret.body = rewriteBegins(ret.body).(Evalable)
+	ret.body = Rewrite(ret.body, rewriteBegins).(Evalable)
 	return ret
 }
