@@ -37,10 +37,12 @@ func Eval(a Evalable, env Env) (ret Node) {
 }
 
 func Rewrite(node Node, f RewriteFunc) (ret Node) {
-	if true {
+	if Trace {
 		log.Println("rewriting", SprintNode(node))
 		defer func() {
-			log.Println("rewrote", SprintNode(node), "->", SprintNode(ret))
+			if ret != nil {
+				log.Println("rewrote", SprintNode(node), "->", SprintNode(ret))
+			}
 		}()
 	}
 	ret = f(node)
@@ -90,10 +92,4 @@ func Apply(a Applicable, args List, env Env) (ret Node) {
 	}
 	ret = a.Apply(args, env)
 	return
-}
-
-func evalList(a List, env Env) List {
-	return a.Map(func(a Node) Node {
-		return Eval(a.(Evalable), env)
-	})
 }

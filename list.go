@@ -56,7 +56,11 @@ func (me List) Map(f MapFunc) List {
 
 func (me List) Eval(env Env) Node {
 	proc := Eval(me.slice[0].(Evalable), env).(Applicable)
-	return Apply(proc, evalList(me.Cdr(), env), env)
+	newSlice := make([]Node, len(me.slice) - 1)
+	for i, a := range me.slice[1:] {
+		newSlice[i] = Eval(a.(Evalable), env)
+	}
+	return Apply(proc, List{newSlice}, env)
 }
 
 func Cons(a Node, b List) List {
