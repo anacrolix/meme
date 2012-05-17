@@ -59,9 +59,9 @@ func Rewrite(node Node, f RewriteFunc) (ret Node) {
 
 func Analyze(a Parseable, env Env) (ret Evalable) {
 	if Trace {
-		log.Println("analyzing", a)
+		log.Println("analyzing", SprintNode(a))
 		defer func() {
-			log.Println("analyzed", a, "->", ret)
+			log.Println("analyzed", SprintNode(a), "->", SprintNode(ret))
 		}()
 	}
 	var list List
@@ -85,9 +85,9 @@ func Analyze(a Parseable, env Env) (ret Evalable) {
 
 func Apply(a Applicable, args List, env Env) (ret Node) {
 	if Trace {
-		log.Println("applying", a, "to", args)
+		log.Println("applying", SprintNode(a), "to", SprintNode(args))
 		defer func() {
-			log.Println("applied", a, "to", args, "->", ret)
+			log.Println("applied", SprintNode(a), "to", SprintNode(args), "->", SprintNode(ret))
 		}()
 	}
 	ret = a.Apply(args, env)
