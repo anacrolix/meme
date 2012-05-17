@@ -34,10 +34,6 @@ func NewSymbol(s string) Symbol {
 	}
 }
 
-func (me Symbol) String() string {
-	return printString(me)
-}
-
 func (me Symbol) Print(p *Printer) {
 	p.Atom(me.val)
 }

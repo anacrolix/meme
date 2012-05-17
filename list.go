@@ -4,17 +4,22 @@ type MapFunc func(Node) Node
 
 var _ Parseable = List{}
 var _ Comparable = List{}
+var _ Rewritable = List{}
 
 type List struct {
 	slice []Node
 }
 
-var Nil = List{[]Node{}}
+var Nil = List{}
+
+func (me List) Rewrite(f RewriteFunc) Node {
+	return me.Map(MapFunc(f))
+}
 
 func (me List) Print(p *Printer) {
 	p.SyntaxToken(ListStart)
 	for _, a := range me.slice {
-		a.(Printable).Print(p)
+		a.Print(p)
 	}
 	p.SyntaxToken(ListEnd)
 }
@@ -73,8 +78,4 @@ func (me List) Less(other Node) (less bool, err error) {
 		return me.Len() < otherList.Len(), nil
 	}
 	return false, TypeError
-}
-
-func (me List) String() string {
-	return printString(me)
 }

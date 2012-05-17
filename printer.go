@@ -52,3 +52,11 @@ func (me *Printer) SyntaxToken(typ uint) {
 		panic(typ)
 	}
 }
+
+func (me *Printer) ListEnd() {
+	me.SyntaxToken(ListEnd)
+}
+
+func (me *Printer) ListStart() {
+	me.SyntaxToken(ListStart)
+}

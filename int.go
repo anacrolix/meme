@@ -26,10 +26,6 @@ func NewInt(val int64) Int {
 	return Int{val: val}
 }
 
-func (me Int) String() string {
-	return printString(me)
-}
-
 func (me Int) Print(p *Printer) {
 	p.Atom(me.val)
 }

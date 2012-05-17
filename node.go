@@ -1,14 +1,11 @@
 package meme
 
-import (
-	"fmt"
-)
-
 type Analyzer interface {
 	Analyze(List, Env) Evalable
 }
 
 type Applicable interface {
+	Node
 	Apply(List, Env) Node
 }
 
@@ -17,12 +14,12 @@ type Expandable interface {
 }
 
 type Evalable interface {
+	Node
 	Eval(Env) Node
 }
 
 type Parseable interface {
 	Evalable
-	Printable
 }
 
 type Comparable interface {
@@ -32,14 +29,15 @@ type Comparable interface {
 
 type Printable interface {
 	Print(*Printer)
-	fmt.Stringer
+}
+
+type RewriteFunc func(Node) Node
+
+type Rewritable interface {
+	Rewrite(RewriteFunc) Node
 }
 
 type Node interface {
+	Printable
 }
 
-func printString(p Printable) string {
-	np := NewPrinter()
-	p.Print(&np)
-	return np.buf.String()
-}

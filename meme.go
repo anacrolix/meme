@@ -3,7 +3,6 @@ package meme
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 )
 
@@ -20,15 +19,34 @@ func Truth(a Node) bool {
 	return !ok
 }
 
+func SprintNode(n Node) string {
+	p := NewPrinter()
+	n.Print(&p)
+	return p.buf.String()
+}
+
 func Eval(a Evalable, env Env) (ret Node) {
 	if Trace {
-		log.Println("evaluating", a)
+		log.Println("evaluating", SprintNode(a))
 		defer func() {
-			log.Println("evaluated", fmt.Sprintf("%#v", a), "->", ret)
+			log.Println("evaluated", SprintNode(a), "->", SprintNode(ret))
 		}()
 	}
 	ret = a.Eval(env)
 	return
+}
+
+func Rewrite(node Node, f RewriteFunc) (ret Node) {
+	if true {
+		log.Println("rewriting", SprintNode(node))
+		defer func() {
+			log.Println("rewrote", SprintNode(node), "->", SprintNode(ret))
+		}()
+	}
+	if rw, ok := node.(Rewritable); ok {
+		return rw.Rewrite(f)
+	}
+	return node
 }
 
 func Analyze(a Parseable, env Env) (ret Evalable) {

@@ -1,5 +1,7 @@
 package meme
 
+import "fmt"
+
 type PrimitiveApplyFunc func(List, Env) Node
 
 type primitive struct {
@@ -14,6 +16,11 @@ func (me primitive) Apply(args List, env Env) Node {
 
 func (me primitive) Eval(Env) interface{} {
 	return me
+}
+
+func (me primitive) Print(p *Printer) {
+	p.Atom("#(" + fmt.Sprintf("%#v", me.apply))
+	p.ListEnd()
 }
 
 func NewPrimitive(apply PrimitiveApplyFunc) primitive {

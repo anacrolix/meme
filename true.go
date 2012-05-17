@@ -18,8 +18,4 @@ func (trueType) Print(p *Printer) {
 	p.Atom("#t")
 }
 
-func (trueType) String() string {
-	return printString(True)
-}
-
 var True trueType

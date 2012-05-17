@@ -16,6 +16,3 @@ func (falseType) Expand(Env) Parseable {
 	return False
 }
 
-func (falseType) String() string {
-	return printString(False)
-}

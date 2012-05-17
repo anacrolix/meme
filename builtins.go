@@ -75,14 +75,11 @@ type define struct {
 
 var _ Evalable = define{}
 
-/*
 func (me define) Print(p *Printer) {
 	p.Atom("#(define")
 	p.Atom(me.name)
-	me.value.Print(p)
-	p.SyntaxToken(ListEnd)
+	p.ListEnd()
 }
-*/
 
 func (me define) Eval(env Env) Node {
 	env.Define(me.name)
@@ -92,6 +89,20 @@ func (me define) Eval(env Env) Node {
 type setBang struct {
 	name  string
 	value Evalable
+}
+
+var _ Rewritable = setBang{}
+
+func (me setBang) Print(p *Printer) {
+	p.Atom("#(set!")
+	p.Atom(me.name)
+	me.value.Print(p)
+	p.ListEnd()
+}
+
+func (me setBang) Rewrite(f RewriteFunc) Node {
+	me.value = f(me.value).(Evalable)
+	return me
 }
 
 func (me setBang) Eval(env Env) Node {
@@ -179,19 +190,23 @@ func parseFormals(fmls Node) (fixed []string, rest *string) {
 type begin []Evalable
 
 var _ Evalable = begin{}
+var _ Rewritable = begin{}
 
-/*
 func (me begin) Print(p *Printer) {
-	p.SyntaxToken(ListStart)
-	p.Atom("#(begin)")
-	exps := me.exps
-	for !exps.IsNull() {
-		exps.Car().Print(p)
-		exps = exps.Cdr()
+	p.Atom("#(begin")
+	for _, n := range me {
+		n.Print(p)
 	}
-	p.SyntaxToken(ListEnd)
+	p.ListEnd()
 }
-*/
+
+func (me begin) Rewrite(f RewriteFunc) Node {
+	ret := make(begin, len(me))
+	for i, a := range me {
+		ret[i] = f(a).(Evalable)
+	}
+	return ret
+}
 
 func (me begin) Eval(env Env) (ret Node) {
 	for _, stmt := range me {
@@ -221,7 +236,6 @@ type if_ struct {
 	test, conseq, alt Evalable
 }
 
-/*
 func (me if_) Print(p *Printer) {
 	p.Atom("#(if")
 	me.test.Print(p)
@@ -229,9 +243,8 @@ func (me if_) Print(p *Printer) {
 	if me.alt != nil {
 		me.alt.Print(p)
 	}
-	p.SyntaxToken(ListEnd)
+	p.ListEnd()
 }
-*/
 
 func analyzeIf(args List, env Env) Evalable {
 	var ret if_

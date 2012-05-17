@@ -23,10 +23,6 @@ func (me Quote) Print(p *Printer) {
 	me.quoted.(Printable).Print(p)
 }
 
-func (me Quote) String() string {
-	return printString(me)
-}
-
 func (me Quote) Expand(Env) Parseable {
 	return me
 }

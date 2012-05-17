@@ -20,7 +20,7 @@ func runReader(reader *bufio.Reader, env meme.Env) {
 		code := meme.Analyze(data, env)
 		result := meme.Eval(code, env)
 		if !meme.IsVoid(result) {
-			fmt.Fprintln(os.Stderr, result)
+			fmt.Fprintln(os.Stderr, meme.SprintNode(result))
 		}
 	}
 }
