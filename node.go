@@ -40,4 +40,3 @@ type Rewritable interface {
 type Node interface {
 	Printable
 }
-

@@ -15,4 +15,3 @@ func (falseType) Print(p *Printer) {
 func (falseType) Expand(Env) Parseable {
 	return False
 }
-

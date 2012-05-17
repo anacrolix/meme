@@ -48,7 +48,7 @@ func Rewrite(node Node, f RewriteFunc) (ret Node) {
 		return
 	}
 	if rw, ok := node.(Rewritable); ok {
-		return rw.Rewrite(func (n Node) Node {
+		return rw.Rewrite(func(n Node) Node {
 			return Rewrite(n, f)
 		})
 	}

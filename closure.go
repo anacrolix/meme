@@ -8,8 +8,8 @@ type Closure struct {
 	Env    Env
 	body   Evalable
 	locals []string
-	fixed int
-	rest bool
+	fixed  int
+	rest   bool
 }
 
 var _ Applicable = &Closure{}
@@ -60,9 +60,9 @@ func rewriteBegins(node Node) Node {
 func NewClosure(func_ *Func, env Env) Closure {
 	log.Println("making closure from", SprintNode(func_))
 	ret := Closure{
-		Env:   env,
-		fixed: len(func_.fixed),
-		rest: func_.rest != nil,
+		Env:    env,
+		fixed:  len(func_.fixed),
+		rest:   func_.rest != nil,
 		locals: append(func_.fixed),
 	}
 	if func_.rest != nil {
