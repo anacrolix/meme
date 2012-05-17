@@ -10,7 +10,7 @@ type Closure struct {
 	locals []string
 	fixed  int
 	rest   bool
-	names map[string]int
+	names  map[string]int
 }
 
 var _ Applicable = &Closure{}
@@ -88,7 +88,7 @@ func NewClosure(func_ *Func, env Env) *Closure {
 			if i, ok := ret.names[sym.Value()]; ok {
 				return fastVar{
 					closure: ret,
-					index: i,
+					index:   i,
 				}
 			}
 			ret := env.Find(sym.Value())
