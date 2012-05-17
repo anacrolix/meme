@@ -386,9 +386,9 @@ static Node *apply_apply(Node *const args[const], int count, Env *env) {
 */
 
 func applyApply(args List, env Env) Node {
-	rest := args.Index(args.Len() - 1).(List)
-	newArgs := append(args.slice[1:len(args.slice)-1], rest.slice...)
-	return Apply(args.Car().(Applicable), List{newArgs}, env)
+	rest := args[len(args)-1].(List)
+	newArgs := append(args[1:len(args)-1], rest...)
+	return Apply(args[0].(Applicable), newArgs, env)
 }
 
 /*

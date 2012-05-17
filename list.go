@@ -6,9 +6,7 @@ var _ Parseable = List{}
 var _ Comparable = List{}
 var _ Rewritable = List{}
 
-type List struct {
-	slice []Node
-}
+type List []Node
 
 var Nil = List{}
 
@@ -18,55 +16,53 @@ func (me List) Rewrite(f RewriteFunc) Node {
 
 func (me List) Print(p *Printer) {
 	p.SyntaxToken(ListStart)
-	for _, a := range me.slice {
+	for _, a := range me {
 		a.Print(p)
 	}
 	p.SyntaxToken(ListEnd)
 }
 
 func (me List) Car() Node {
-	return me.slice[0]
+	return me[0]
 }
 
 func (me List) Cdr() List {
-	return List{me.slice[1:]}
+	return me[1:]
 }
 
 func (me List) IsNull() bool {
-	return len(me.slice) == 0
+	return len(me) == 0
 }
 
-func (me *List) Index(i int) Node {
-	return me.slice[i]
+func (me List) Index(i int) Node {
+	return me[i]
 }
 
-func (me *List) Len() int {
-	return len(me.slice)
+func (me List) Len() int {
+	return len(me)
 }
 
 func (me List) Map(f MapFunc) List {
-	ret := List{
-		make([]Node, len(me.slice)),
-	}
-	for i, n := range me.slice {
-		ret.slice[i] = f(n)
+	ret := make(List, len(me))
+	for i, n := range me {
+		ret[i] = f(n)
 	}
 	return ret
 }
 
 func (me List) Eval(env Env) Node {
-	proc := Eval(me.slice[0].(Evalable), env).(Applicable)
-	newSlice := make([]Node, len(me.slice) - 1)
-	for i, a := range me.slice[1:] {
-		newSlice[i] = Eval(a.(Evalable), env)
+	proc := Eval(me[0].(Evalable), env).(Applicable)
+	args := make(List, len(me)-1)
+	for i, a := range me[1:] {
+		args[i] = Eval(a.(Evalable), env)
 	}
-	return Apply(proc, List{newSlice}, env)
+	return Apply(proc, args, env)
 }
 
 func Cons(a Node, b List) List {
-	ret := List{make([]Node, 1+len(b.slice))}
-	ret.slice[0] = a
-	if len(b.slice) != copy(ret.slice[1:], b.slice) {
+	ret := make(List, 1+len(b))
+	ret[0] = a
+	if len(b) != copy(ret[1:], b) {
 		panic(nil)
 	}
 	return ret
