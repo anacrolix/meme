@@ -11,9 +11,15 @@ type Closure struct {
 	fixed  int
 	rest   bool
 	names  map[string]int
+	parent *Closure
 }
 
 var _ Applicable = &Closure{}
+var _ Evalable = &Closure{}
+
+func (me *Closure) Eval(Env) Node {
+	return me
+}
 
 func (me Closure) Print(p *Printer) {
 	p.Atom("#(closure)")
@@ -58,7 +64,28 @@ func rewriteBegins(node Node) Node {
 	return nil
 }
 
-func NewClosure(func_ *Func, env Env) *Closure {
+func (me *Closure) fixName(name string, env Env) Evalable {
+	for ups := 0; ; ups++ {
+		if index, ok := me.names[name]; ok {
+			return fastVar{
+				closure: me,
+				index:   index,
+				ups: ups,
+			}
+		}
+		me = me.parent
+		if me == nil {
+			break
+		}
+	}
+	ret := env.Find(name)
+	if ret == nil {
+		panic("symbol not defined: " + name)
+	}
+	return ret
+}
+
+func NewClosure(func_ *Func, env Env, outer *Closure) *Closure {
 	log.Println("making closure from", SprintNode(func_))
 	ret := &Closure{
 		Env:    env,
@@ -83,19 +110,17 @@ func NewClosure(func_ *Func, env Env) *Closure {
 	for i, name := range ret.locals {
 		ret.names[name] = i
 	}
+	ret.parent = outer
 	ret.body = Rewrite(ret.body, func(node Node) Node {
 		if sym, ok := node.(Symbol); ok {
-			if i, ok := ret.names[sym.Value()]; ok {
-				return fastVar{
-					closure: ret,
-					index:   i,
-				}
-			}
-			ret := env.Find(sym.Value())
-			if ret == nil {
-				panic("symbol not defined: " + sym.Value())
-			}
-			return ret
+			return ret.fixName(sym.Value(), env)
+		}
+		return nil
+	}).(Evalable)
+	ret.body = Rewrite(ret.body, func(node Node) Node {
+		switch val := node.(type) {
+		case *Func:
+			return NewClosure(val, env, ret)
 		}
 		return nil
 	}).(Evalable)

@@ -53,6 +53,8 @@
 (define (map-unary f p)
   (fold-right (lambda (head tail) (cons (f head) tail)) '() p))
 
+(define (list-comp f lst)
+  (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))
 (define (map f . is)
   (define heads (lambda (a) (list-comp car a)))
   (define tails (lambda (a) (list-comp cdr a)))
@@ -62,6 +64,4 @@
     (cons 'lambda (cons (map car bindings) (cons body1 bodyn)))
     (map cadr bindings)))
         
-(define (list-comp f lst)
-  (if (null? lst) '() (cons (f (car lst)) (list-comp f (cdr lst)))))
 

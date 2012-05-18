@@ -28,7 +28,7 @@ func (me *Func) Print(p *Printer) {
 }
 
 func (me *Func) Eval(env Env) Node {
-	return NewClosure(me, env)
+	return NewClosure(me, env, nil)
 }
 
 func NewFunc(fixed []string, rest *string, body Evalable) *Func {

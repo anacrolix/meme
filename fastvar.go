@@ -4,7 +4,7 @@ import "fmt"
 
 type fastVar struct {
 	closure *Closure
-	index   int
+	ups, index   int
 }
 
 func (me fastVar) Eval(env Env) Node {
