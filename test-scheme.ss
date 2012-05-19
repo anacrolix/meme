@@ -9,6 +9,7 @@
 (if (eq? b (apply a b)) #t (error))
 
 (define c (lambda (a) (cdr a)))
+(if (/= '(2 3) (c b)) (error))
 
 ; begin
 (if (not (= 3 (begin 1 2 3)))
@@ -51,3 +52,12 @@
                 (z (+ x y)))
             (* z x))))
   (error))
+
+(define (test-closure a . b)
+  (define c '(1 2))
+  (define e 'a)
+  (define (d c)
+	(define a b)
+	a)
+  (d 34))
+(if (/= '((3 4) 42) (test-closure 'b '(3 4) 42)) (error))
