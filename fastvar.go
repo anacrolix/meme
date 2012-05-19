@@ -1,19 +1,25 @@
 package meme
 
-import "fmt"
-
 type fastVar struct {
-	closure *Closure
-	ups, index   int
+	func_    func_
+	ups, index int
+}
+
+func (me fastVar) GetVar(fe fastEnv) *Var {
+	for ups := me.ups; ups != 0; ups-- {
+		fe = *fe.outer
+	}
+	return fe.vars[me.index]
 }
 
 func (me fastVar) Eval(env Env) Node {
-	fastEnv := env.(FastEnv)
-	return fastEnv.vars[me.index].Get()
+	return me.GetVar(env.(fastEnv)).Get()
 }
 
 func (me fastVar) Print(p *Printer) {
-	p.Atom("#(fastVar")
-	p.Atom(fmt.Sprint(me.index))
-	p.ListEnd()
+	func_ := me.func_
+	for ups := me.ups; ups != 0; ups-- {
+		func_ = *func_.parent
+	}
+	p.Atom(func_.locals[me.index])
 }

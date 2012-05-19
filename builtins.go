@@ -1,11 +1,14 @@
 package meme
 
-import "fmt"
+import (
+	"fmt"
+	//"log"
+)
 
 var builtins = map[string]Node{}
 
 func init() {
-	for name, f := range map[string]func(List, Env) Evalable{
+	for name, f := range map[string]func(List, mapEnv) Evalable{
 		"__define": analyzeDefine,
 		"if":       analyzeIf,
 		"lambda":   analyzeLambda,
@@ -29,13 +32,13 @@ func init() {
 		"apply":   applyApply,
 		"__macro": applyMacro,
 	} {
-		builtins[name] = primitive{f}
+		builtins[name] = primitive{name, f}
 	}
 }
 
 type builtinSpecial struct {
 	name    string
-	analyze func(List, Env) Evalable
+	analyze func(List, mapEnv) Evalable
 }
 
 func (me builtinSpecial) Print(p *Printer) {
@@ -43,7 +46,7 @@ func (me builtinSpecial) Print(p *Printer) {
 	p.SyntaxToken(ListEnd)
 }
 
-func (me builtinSpecial) Analyze(args List, env Env) Evalable {
+func (me builtinSpecial) Analyze(args List, env mapEnv) Evalable {
 	return me.analyze(args, env)
 }
 
@@ -82,44 +85,67 @@ func (me define) Print(p *Printer) {
 }
 
 func (me define) Eval(env Env) Node {
-	env.Define(me.name)
+	env.(mapEnv).Define(me.name)
 	return Void
 }
 
+type setVar struct {
+	var_ Evalable
+	exp  Evalable
+}
+
+func (me setVar) Print(p *Printer) {
+	p.Atom("(set!")
+	me.var_.Print(p)
+	me.exp.Print(p)
+	p.ListEnd()
+}
+
 type setBang struct {
-	name  string
-	value Evalable
+	var_ Node
+	exp  Evalable
 }
 
 var _ Rewritable = setBang{}
 
 func (me setBang) Print(p *Printer) {
 	p.Atom("#(set!")
-	p.Atom(me.name)
-	me.value.Print(p)
+	me.var_.Print(p)
+	me.exp.Print(p)
 	p.ListEnd()
 }
 
 func (me setBang) Rewrite(f RewriteFunc) Node {
-	me.value = f(me.value).(Evalable)
+	me.var_ = f(me.var_)
+	me.exp = f(me.exp).(Evalable)
 	return me
 }
 
 func (me setBang) Eval(env Env) Node {
-	env.Find(me.name).Set(Eval(me.value, env))
+	var var_ *Var
+	switch data := me.var_.(type) {
+	case Symbol:
+		var_ = env.(mapEnv).Find(data.Value())
+	case fastVar:
+		var_ = data.GetVar(env.(fastEnv))
+	default:
+		panic(data)
+	}
+	var_.Set(Eval(me.exp, env))
+	//log.Println(me.var_, "set to", SprintNode(var_.Get()))
 	return Void
 }
 
-func analyzeSetBang(args List, env Env) Evalable {
+func analyzeSetBang(args List, env mapEnv) Evalable {
 	return setBang{
-		args.Car().(Symbol).Value(),
+		args.Car().(Symbol),
 		Analyze(args.Index(1).(Parseable), env),
 	}
 }
 
-func analyzeDefine(args List, env Env) Evalable {
+func analyzeDefine(args List, env mapEnv) Evalable {
 	var value Evalable
-	name := args.Car().(Symbol).Value()
+	sym := args.Car().(Symbol)
 	switch args.Len() {
 	case 1:
 	case 2:
@@ -128,12 +154,12 @@ func analyzeDefine(args List, env Env) Evalable {
 		panic(nil)
 	}
 	if value == nil {
-		return define{name}
+		return define{sym.Value()}
 	}
 	return begin{
-		define{name},
+		define{sym.Value()},
 		setBang{
-			name,
+			sym,
 			value,
 		},
 	}
@@ -215,7 +241,7 @@ func (me begin) Eval(env Env) (ret Node) {
 	return
 }
 
-func analyzeBegin(args List, env Env) Evalable {
+func analyzeBegin(args List, env mapEnv) Evalable {
 	ret := begin{}
 	for !args.IsNull() {
 		ret = append(ret, Analyze(args.Car().(Parseable), env))
@@ -224,12 +250,16 @@ func analyzeBegin(args List, env Env) Evalable {
 	return ret
 }
 
-func analyzeLambda(args List, env Env) Evalable {
+func analyzeLambda(args List, env mapEnv) Evalable {
 	if args.Len() < 2 {
 		panic(nil)
 	}
 	fixed, rest := parseFormals(args.Car())
-	return NewFunc(fixed, rest, analyzeBegin(args.Cdr(), env))
+	return lambda{
+		fixed: fixed,
+		rest:  rest,
+		body:  analyzeBegin(args.Cdr(), env),
+	}
 }
 
 type if_ struct {
@@ -257,7 +287,7 @@ func (me if_) Print(p *Printer) {
 	p.ListEnd()
 }
 
-func analyzeIf(args List, env Env) Evalable {
+func analyzeIf(args List, env mapEnv) Evalable {
 	var ret if_
 	ret.test = Analyze(args.Car().(Parseable), env)
 	args = args.Cdr()

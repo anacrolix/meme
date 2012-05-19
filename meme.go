@@ -29,9 +29,16 @@ func Eval(a Evalable, env Env) (ret Node) {
 	if Trace {
 		log.Println("evaluating", SprintNode(a))
 		defer func() {
-			log.Println("evaluated", SprintNode(a), "->", SprintNode(ret))
+			if ret != nil {
+				log.Println("evaluated", SprintNode(a), "->", SprintNode(ret))
+			}
 		}()
 	}
+	defer func() {
+		if ret == nil {
+			log.Println("error evaluating", SprintNode(a))
+		}
+	}()
 	ret = a.Eval(env)
 	return
 }
@@ -57,7 +64,7 @@ func Rewrite(node Node, f RewriteFunc) (ret Node) {
 	return node
 }
 
-func Analyze(a Parseable, env Env) (ret Evalable) {
+func Analyze(a Parseable, env mapEnv) (ret Evalable) {
 	if Trace {
 		log.Println("analyzing", SprintNode(a))
 		defer func() {
@@ -87,9 +94,16 @@ func Apply(a Applicable, args List, env Env) (ret Node) {
 	if Trace {
 		log.Println("applying", SprintNode(a), "to", SprintNode(args))
 		defer func() {
-			log.Println("applied", SprintNode(a), "to", SprintNode(args), "->", SprintNode(ret))
+			if ret != nil {
+				log.Println("applied", SprintNode(a), "to", SprintNode(args), "->", SprintNode(ret))
+			}
 		}()
 	}
+	defer func() {
+		if ret == nil {
+			log.Println("error applying", SprintNode(a), "to", SprintNode(args))
+		}
+	}()
 	ret = a.Apply(args, env)
 	return
 }

@@ -1,7 +1,7 @@
 package meme
 
 type Analyzer interface {
-	Analyze(List, Env) Evalable
+	Analyze(List, mapEnv) Evalable
 }
 
 type Applicable interface {

@@ -10,7 +10,7 @@ import (
 	"runtime/pprof"
 )
 
-func runReader(reader *bufio.Reader, env meme.Env) {
+func runReader(reader *bufio.Reader, env *meme.TopEnv) {
 	lexer := meme.NewLexer(reader)
 	for {
 		data := meme.Parse(&lexer)

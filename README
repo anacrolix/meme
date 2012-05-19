@@ -57,3 +57,4 @@ Make sure to set G_SLICE=always-malloc, and possibly G_DEBUG=gc-friendly in the 
  * Ditch hash tables in environments (except perhaps the top level one?)
  * Cut back on unneeded loop detections.
  * Implement read and print.
+ * Reimplement stripping noop quotes and voids.

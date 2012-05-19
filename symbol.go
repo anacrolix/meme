@@ -13,7 +13,7 @@ func (me Symbol) Apply([]Node, Env) Node {
 }
 
 func (me Symbol) Eval(env Env) (ret Node) {
-	var_ := env.Find(me.val)
+	var_ := env.(mapEnv).Find(me.val)
 	if var_ == nil {
 		panic("symbol not found: " + me.val)
 	}

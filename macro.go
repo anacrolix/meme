@@ -13,6 +13,6 @@ func (me Macro) Print(p *Printer) {
 	p.ListEnd()
 }
 
-func (me Macro) Analyze(args List, env Env) Evalable {
+func (me Macro) Analyze(args List, env mapEnv) Evalable {
 	return Analyze(Apply(me.body, args, env).(Parseable), env)
 }

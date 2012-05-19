@@ -1,10 +1,9 @@
 package meme
 
-import "fmt"
-
 type PrimitiveApplyFunc func(List, Env) Node
 
 type primitive struct {
+	name  string
 	apply PrimitiveApplyFunc
 }
 
@@ -19,7 +18,7 @@ func (me primitive) Eval(Env) interface{} {
 }
 
 func (me primitive) Print(p *Printer) {
-	p.Atom("#(" + fmt.Sprintf("%#v", me.apply))
+	p.Atom("#(" + me.name)
 	p.ListEnd()
 }
 

@@ -1,7 +1,8 @@
 package meme
 
 type Var struct {
-	val Node
+	name string
+	val  Node
 }
 
 var _ Evalable = &Var{}
@@ -25,11 +26,5 @@ func (me *Var) Set(val Node) {
 }
 
 func (me *Var) Print(p *Printer) {
-	p.Atom("#(*Var")
-	if me.val == nil {
-		p.Atom("<nil>")
-	} else {
-		me.val.Print(p)
-	}
-	p.ListEnd()
+	p.Atom(me.name)
 }
