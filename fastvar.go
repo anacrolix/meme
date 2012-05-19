@@ -1,7 +1,7 @@
 package meme
 
 type fastVar struct {
-	func_    func_
+	func_      func_
 	ups, index int
 }
 

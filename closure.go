@@ -5,7 +5,7 @@ import (
 )
 
 type closure struct {
-	func_ func_
+	func_ *func_
 	env   fastEnv
 }
 
@@ -22,7 +22,7 @@ func (me closure) Apply(args List, outer Env) Node {
 	locals := me.func_.locals
 	fixed := me.func_.fixed
 	env := fastEnv{
-		vars: make([]*Var, len(locals)),
+		vars:  make([]*Var, len(locals)),
 		outer: &me.env,
 	}
 	i := 0

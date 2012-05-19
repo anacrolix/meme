@@ -29,5 +29,5 @@ func (me lambda) Print(p *Printer) {
 }
 
 func (me lambda) Eval(env Env) Node {
-	return newFunc(me, env.(mapEnv), nil)
+	return newFunc(me, env.(mapEnv), nil).Eval(env)
 }

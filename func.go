@@ -1,9 +1,5 @@
 package meme
 
-import (
-	"log"
-)
-
 type func_ struct {
 	body   Evalable
 	locals []string
@@ -15,15 +11,16 @@ type func_ struct {
 var _ Evalable = &func_{}
 var _ Printable = &func_{}
 
-func (me func_) Eval(env Env) Node {
+func (me *func_) Eval(env Env) Node {
+	fe, _ := env.(fastEnv)
 	return closure{
 		func_: me,
-		env:   env.(fastEnv),
+		env:   fe,
 	}
 }
 
 func (me *func_) Print(p *Printer) {
-	p.Atom("#(closure")
+	p.Atom("#(func")
 	if me.fixed != 0 {
 		p.ListStart()
 		for i := 0; i < me.fixed; i++ {
@@ -42,32 +39,6 @@ func (me *func_) Print(p *Printer) {
 	}
 	me.body.Print(p)
 	p.ListEnd()
-}
-
-func (me *func_) Apply(args List, outer Env) Node {
-	env := fastEnv{
-		vars: make([]*Var, len(me.locals)),
-	}
-	i := 0
-	for ; i < me.fixed; i++ {
-		env.vars[i] = &Var{
-			me.locals[i],
-			args.Car(),
-		}
-		args = args.Cdr()
-	}
-	if me.rest {
-		env.vars[i] = &Var{me.locals[i], args}
-		i++
-	} else if !args.IsNull() {
-		panic("too many args given")
-	}
-	for ; i < len(me.locals); i++ {
-		env.vars[i] = &Var{
-			name: me.locals[i],
-		}
-	}
-	return Eval(me.body, env)
 }
 
 func rewriteBegins(node Node) Node {
@@ -116,7 +87,6 @@ func (me func_) bindName(name string, env mapEnv) Evalable {
 }
 
 func newFunc(_lambda lambda, env mapEnv, outer *func_) *func_ {
-	log.Println("making func")
 	ret := &func_{
 		fixed:  len(_lambda.fixed),
 		rest:   _lambda.rest != nil,
