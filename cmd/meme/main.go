@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"meme"
+	"bitbucket.org/anacrolix/meme"
 	"os"
 	"runtime/pprof"
 )
