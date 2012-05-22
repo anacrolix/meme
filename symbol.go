@@ -8,10 +8,6 @@ type Symbol struct {
 
 var _ Comparable = Symbol{}
 
-func (me Symbol) Apply([]Node, Env) Node {
-	panic("symbols are not operators")
-}
-
 func (me Symbol) Eval(env Env) (ret Node) {
 	var_ := env.(mapEnv).Find(me.val)
 	if var_ == nil {
@@ -28,13 +24,7 @@ func (me Symbol) Value() string {
 	return me.val
 }
 
-func NewSymbol(s string) Symbol {
-	return Symbol{
-		val: s,
-	}
-}
-
-func (me Symbol) Print(p *Printer) {
+func (me Symbol) Print(p *Print) {
 	p.Atom(me.val)
 }
 
@@ -43,4 +33,8 @@ func (me Symbol) Less(other Node) (less bool, err error) {
 		return me.val < sym.val, nil
 	}
 	return false, TypeError
+}
+
+func newSymbol(s string) Symbol {
+	return Symbol{s}
 }

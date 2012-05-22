@@ -16,7 +16,7 @@ func (me fastVar) Eval(env Env) Node {
 	return me.GetVar(env.(fastEnv)).Get()
 }
 
-func (me fastVar) Print(p *Printer) {
+func (me fastVar) Print(p *Print) {
 	func_ := me.func_
 	for ups := me.ups; ups != 0; ups-- {
 		func_ = *func_.parent

@@ -2,7 +2,8 @@ package meme
 
 import (
 	"fmt"
-	//"log"
+	"io"
+	"os"
 )
 
 var builtins = map[string]Node{}
@@ -31,9 +32,30 @@ func init() {
 		"pair?":   applyPairQuery,
 		"apply":   applyApply,
 		"__macro": applyMacro,
+		"print":   applyPrint,
 	} {
-		builtins[name] = primitive{name, f}
+		builtins[name] = &primitiveApplier{name, f}
 	}
+	builtins["stdout"] = &primitiveEvaler{"stdout", evalStdout, os.Stderr}
+}
+
+type primitiveEvaler struct {
+	name  string
+	func_ func(Env) interface{}
+	value interface{}
+}
+
+func (me *primitiveEvaler) Value() interface{} {
+	return me.value
+}
+
+func (me primitiveEvaler) Print(p *Print) {
+	p.Atom("#(" + me.name)
+	p.ListEnd()
+}
+
+func evalStdout(Env) interface{} {
+	return os.Stdout
 }
 
 type builtinSpecial struct {
@@ -41,7 +63,7 @@ type builtinSpecial struct {
 	analyze func(List, mapEnv) Evalable
 }
 
-func (me builtinSpecial) Print(p *Printer) {
+func (me builtinSpecial) Print(p *Print) {
 	p.Atom(fmt.Sprintf("#(%s", me.name))
 	p.SyntaxToken(ListEnd)
 }
@@ -78,7 +100,7 @@ type define struct {
 
 var _ Evalable = define{}
 
-func (me define) Print(p *Printer) {
+func (me define) Print(p *Print) {
 	p.Atom("#(define")
 	p.Atom(me.name)
 	p.ListEnd()
@@ -94,7 +116,7 @@ type setVar struct {
 	exp  Evalable
 }
 
-func (me setVar) Print(p *Printer) {
+func (me setVar) Print(p *Print) {
 	p.Atom("(set!")
 	me.var_.Print(p)
 	me.exp.Print(p)
@@ -108,7 +130,7 @@ type setBang struct {
 
 var _ Rewritable = setBang{}
 
-func (me setBang) Print(p *Printer) {
+func (me setBang) Print(p *Print) {
 	p.Atom("#(set!")
 	me.var_.Print(p)
 	me.exp.Print(p)
@@ -167,22 +189,35 @@ func analyzeDefine(args List, env mapEnv) Evalable {
 
 func applyMinus(args List, env Env) Node {
 	if args.Cdr().IsNull() {
-		return NewInt(-args.Car().(Int).Int64())
+		return NewInt(-args.Car().(*Int).Int64())
 	}
-	ll := args.Car().(Int).Int64()
+	ll := args.Car().(*Int).Int64()
 	args = args.Cdr()
 	for !args.IsNull() {
-		ll -= args.Car().(Int).Int64()
+		ll -= args.Car().(*Int).Int64()
 		args = args.Cdr()
 	}
 	return NewInt(ll)
 }
 
+func applyPrint(args List, _ Env) Node {
+	a := make([]interface{}, 0, len(args.Cdr()))
+	for _, n := range args.Cdr() {
+		var v interface{}
+			
+	}
+	n, err := fmt.Fprintln(args.Car().(Capsule).Value().(io.Writer), a...)
+	if err != nil {
+		panic(err)
+	}
+	return NewInt(int64(n))
+}
+
 func applySplat(args List, env Env) Node {
-	v := args.Car().(Int).Int64()
+	v := args.Car().(*Int).Int64()
 	args = args.Cdr()
 	for {
-		v *= args.Car().(Int).Int64()
+		v *= args.Car().(*Int).Int64()
 		args = args.Cdr()
 		if args.IsNull() {
 			break
@@ -218,7 +253,7 @@ type begin []Evalable
 var _ Evalable = begin{}
 var _ Rewritable = begin{}
 
-func (me begin) Print(p *Printer) {
+func (me begin) Print(p *Print) {
 	p.Atom("#(begin")
 	for _, n := range me {
 		n.Print(p)
@@ -277,7 +312,7 @@ func (me if_) Rewrite(f RewriteFunc) Node {
 	return me
 }
 
-func (me if_) Print(p *Printer) {
+func (me if_) Print(p *Print) {
 	p.Atom("#(if")
 	me.test.Print(p)
 	me.conseq.Print(p)
@@ -327,22 +362,13 @@ func applyCdr(args List, env Env) Node {
 	return args.Car().(List).Cdr()
 }
 
-/*
-static Node *apply_symbol_query(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Node *ret = symbol_check(*args) ? true_node : false_node;
-    node_ref(ret);
-    return ret;
-}
-
-*/
 func applyPlus(args List, env Env) Node {
 	if args.Len() < 1 {
 		panic(nil)
 	}
 	var ll int64
 	for !args.IsNull() {
-		ll += args.Car().(Int).Int64()
+		ll += args.Car().(*Int).Int64()
 		args = args.Cdr()
 	}
 	return NewInt(ll)
@@ -398,53 +424,11 @@ func applyEqQuery(args List, env Env) Node {
 	return True
 }
 
-/*
-// TODO test crash for (apply f)
-static Node *apply_apply(Node *const args[const], int count, Env *env) {
-    if (count < 2) return NULL;
-    Pair *argn = pair_check(args[count-1]);
-    if (!argn) return NULL;
-    int argc1 = count - 2 + list_length(argn);
-    Node *args1[argc1];
-    memcpy(args1, args + 1, sizeof *args * (count - 2));
-    Node **dest = args1 + count - 2;
-    for (; !is_null(argn); argn = pair_dec(argn)) {
-        *dest++ = argn->addr;
-    }
-    return node_apply(*args, args1, argc1, env);
-}
-*/
-
 func applyApply(args List, env Env) Node {
 	rest := args[len(args)-1].(List)
 	newArgs := append(args[1:len(args)-1], rest...)
 	return Apply(args[0].(Applicable), newArgs, env)
 }
-
-/*
-static Node *apply_defined_query(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Symbol *var = symbol_check(*args);
-    if (!var) return NULL;
-    Node *ret = env_is_defined(env, var) ? true_node : false_node;
-    node_ref(ret);
-    return ret;
-}
-
-static Node *apply_undef(Node *const args[], int count, Env *env) {
-    if (count != 1) return NULL;
-    Symbol *sym = symbol_check(*args);
-    if (!sym) return NULL;
-    if (!env_undefine(env, sym)) return NULL;
-    node_ref(void_node);
-    return void_node;
-}
-
-static PrimitiveType primitives[] = {
-    {"+", apply_plus},
-    {"symbol?", apply_symbol_query},
-};
-*/
 
 func applyPairQuery(args List, env Env) Node {
 	if !args.Cdr().IsNull() {

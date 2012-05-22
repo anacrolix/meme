@@ -5,19 +5,19 @@ import (
 	"fmt"
 )
 
-type Printer struct {
+type Print struct {
 	buf      *bytes.Buffer
 	lastType uint
 }
 
-func NewPrinter() Printer {
-	return Printer{
+func NewPrint() Print {
+	return Print{
 		buf:      &bytes.Buffer{},
 		lastType: InvalidToken,
 	}
 }
 
-func (me *Printer) startToken(tt uint) {
+func (me *Print) startToken(tt uint) {
 	switch me.lastType {
 	case InvalidToken, ListStart, QuoteType:
 	case ListEnd, AtomType:
@@ -30,16 +30,16 @@ func (me *Printer) startToken(tt uint) {
 	me.lastType = tt
 }
 
-func (me Printer) Space() {
+func (me Print) Space() {
 	me.buf.WriteByte(' ')
 }
 
-func (me *Printer) Atom(a interface{}) {
+func (me *Print) Atom(a interface{}) {
 	me.startToken(AtomType)
 	fmt.Fprint(me.buf, a)
 }
 
-func (me *Printer) SyntaxToken(typ uint) {
+func (me *Print) SyntaxToken(typ uint) {
 	me.startToken(typ)
 	switch typ {
 	case ListStart:
@@ -53,10 +53,10 @@ func (me *Printer) SyntaxToken(typ uint) {
 	}
 }
 
-func (me *Printer) ListEnd() {
+func (me *Print) ListEnd() {
 	me.SyntaxToken(ListEnd)
 }
 
-func (me *Printer) ListStart() {
+func (me *Print) ListStart() {
 	me.SyntaxToken(ListStart)
 }

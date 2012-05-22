@@ -1,6 +1,7 @@
 package meme
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -28,24 +29,31 @@ func (me *parser) parseList() List {
 }
 
 func (me *parser) parseAtom() Parseable {
-	s := me.tok.(Atom).Value
-	r, _, err := strings.NewReader(s).ReadRune()
-	if err != nil {
-		panic(err)
-	}
-	switch {
-	case unicode.IsDigit(r):
-		i, err := strconv.ParseInt(s, 0, 64)
+	atom := me.tok.(Atom)
+	s := atom.Value.(string)
+	switch atom.Type {
+	case SymbolToken:
+		r, _, err := strings.NewReader(s).ReadRune()
 		if err != nil {
 			panic(err)
 		}
-		return NewInt(i)
-	case s == "#t":
-		return True
-	case s == "#f":
-		return False
+		switch {
+		case unicode.IsDigit(r):
+			i, err := strconv.ParseInt(s, 0, 64)
+			if err != nil {
+				panic(err)
+			}
+			return NewInt(i)
+		case s == "#t":
+			return True
+		case s == "#f":
+			return False
+		}
+		return newSymbol(s)
+	case StringToken:
+		return newString(s)
 	}
-	return NewSymbol(s)
+	panic(nil)
 }
 
 func (me *parser) parse() Parseable {
@@ -61,8 +69,10 @@ func (me *parser) parse() Parseable {
 			panic(err)
 		}
 		return NewQuote(me.parse())
+	default:
+		panic(fmt.Sprint(syntaxType))
 	}
-	panic("syntax error")
+	panic(me.tok)
 }
 
 func Parse(l *Lexer) Parseable {

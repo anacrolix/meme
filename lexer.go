@@ -12,6 +12,7 @@ type Token interface {
 
 type TokenStruct struct {
 	line, col uint
+	Type      uint
 }
 
 func (me TokenStruct) Line() uint {
@@ -24,12 +25,11 @@ func (me TokenStruct) Col() uint {
 
 type Atom struct {
 	TokenStruct
-	Value string
+	Value interface{}
 }
 
 type SyntaxToken struct {
 	TokenStruct
-	Type uint
 }
 
 const (
@@ -38,6 +38,8 @@ const (
 	ListEnd
 	QuoteType
 	AtomType
+	StringToken
+	SymbolToken
 )
 
 type Lexer struct {
@@ -64,11 +66,16 @@ func (me *Lexer) readRune() (r rune, err error) {
 	return
 }
 
+func (me *Lexer) discardRune() error {
+	_, err := me.readRune()
+	return err
+}
+
 func (me *Lexer) unreadRune() {
 	me.R.UnreadRune()
 }
 
-func (me *Lexer) readAtom() (ret string) {
+func (me *Lexer) readSymbol() (ret string) {
 read:
 	for {
 		c, err := me.readRune()
@@ -78,6 +85,22 @@ read:
 		switch c {
 		case ' ', '\t', '(', ')', '\r', '\n':
 			me.unreadRune()
+			break read
+		}
+		ret += string(c)
+	}
+	return
+}
+
+func (me *Lexer) readString() (ret string) {
+read:
+	for {
+		c, err := me.readRune()
+		if err != nil {
+			panic(err)
+		}
+		switch c {
+		case '"':
 			break read
 		}
 		ret += string(c)
@@ -114,23 +137,23 @@ func (me *Lexer) discardWhitespace() (err error) {
 	return
 }
 
-func (me *Lexer) newToken() TokenStruct {
+func (me *Lexer) newToken(type_ uint) TokenStruct {
 	return TokenStruct{
 		line: me.Line,
 		col:  me.Col,
+		Type: type_,
 	}
 }
 
 func (me *Lexer) newSyntaxToken(typ uint) SyntaxToken {
 	return SyntaxToken{
-		TokenStruct: me.newToken(),
-		Type:        typ,
+		TokenStruct: me.newToken(typ),
 	}
 }
 
-func (me *Lexer) newAtom(val string) Atom {
+func (me *Lexer) newAtom(typ uint, val interface{}) Atom {
 	return Atom{
-		TokenStruct: me.newToken(),
+		TokenStruct: me.newToken(typ),
 		Value:       val,
 	}
 }
@@ -152,9 +175,11 @@ func (me *Lexer) NextToken() (tok Token, err error) {
 		tok = me.newSyntaxToken(ListEnd)
 	case '\'':
 		tok = me.newSyntaxToken(QuoteType)
+	case '"':
+		tok = me.newAtom(StringToken, me.readString())
 	default:
 		me.unreadRune()
-		tok = me.newAtom(me.readAtom())
+		tok = me.newAtom(SymbolToken, me.readSymbol())
 	}
 	return
 }

@@ -8,7 +8,7 @@ func (me falseType) Eval(Env) Node {
 	return me
 }
 
-func (falseType) Print(p *Printer) {
+func (falseType) Print(p *Print) {
 	p.Atom("#f")
 }
 

@@ -20,8 +20,8 @@ func Truth(a Node) bool {
 }
 
 func SprintNode(n Node) string {
-	p := NewPrinter()
-	n.Print(&p)
+	p := NewPrint()
+	n.(Printable).Print(&p)
 	return p.buf.String()
 }
 

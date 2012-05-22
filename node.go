@@ -28,7 +28,7 @@ type Comparable interface {
 }
 
 type Printable interface {
-	Print(*Printer)
+	Print(*Print)
 }
 
 type RewriteFunc func(Node) Node

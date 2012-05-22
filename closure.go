@@ -12,13 +12,13 @@ type closure struct {
 var _ Applicable = closure{}
 var _ Printable = closure{}
 
-func (me closure) Print(p *Printer) {
+func (me closure) Print(p *Print) {
 	p.Atom("#(closure")
 	me.func_.Print(p)
 	p.ListEnd()
 }
 
-func (me closure) Apply(args List, outer Env) Node {
+func (me closure) Apply(args List, _ Env) Node {
 	locals := me.func_.locals
 	fixed := me.func_.fixed
 	env := fastEnv{

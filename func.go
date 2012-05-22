@@ -19,7 +19,7 @@ func (me *func_) Eval(env Env) Node {
 	}
 }
 
-func (me *func_) Print(p *Printer) {
+func (me *func_) Print(p *Print) {
 	p.Atom("#(func")
 	if me.fixed != 0 {
 		p.ListStart()
@@ -69,8 +69,8 @@ func (me func_) bindName(name string, env mapEnv) Evalable {
 			if s == name {
 				return fastVar{
 					func_: me,
-					index:   index,
-					ups:     ups,
+					index: index,
+					ups:   ups,
 				}
 			}
 		}

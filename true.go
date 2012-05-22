@@ -14,7 +14,7 @@ func (trueType) Expand(Env) Parseable {
 	return True
 }
 
-func (trueType) Print(p *Printer) {
+func (trueType) Print(p *Print) {
 	p.Atom("#t")
 }
 
