@@ -6,7 +6,7 @@ type lambda struct {
 	rest  *string
 }
 
-func (me lambda) Print(p *Printer) {
+func (me lambda) Print(p *Print) {
 	p.Atom("#(lambda")
 	if len(me.fixed) != 0 {
 		p.ListStart()

@@ -14,7 +14,7 @@ func NewQuote(node Node) Quote {
 	}
 }
 
-func (me Quote) Print(p *Printer) {
+func (me Quote) Print(p *Print) {
 	p.SyntaxToken(QuoteType)
 	me.quoted.(Printable).Print(p)
 }

@@ -9,6 +9,6 @@ func IsVoid(a Node) bool {
 	return ok
 }
 
-func (voidType) Print(p *Printer) {
+func (voidType) Print(p *Print) {
 	p.Atom("#(void)")
 }

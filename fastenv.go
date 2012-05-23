@@ -1,7 +1,6 @@
 package meme
 
 type fastEnv struct {
-	vars    []*Var
-	outer   *fastEnv
-	closure *closure
+	vars  []*Var
+	outer *fastEnv
 }

@@ -7,7 +7,7 @@ type Macro struct {
 var _ Analyzer = Macro{}
 var _ Special = Macro{}
 
-func (me Macro) Print(p *Printer) {
+func (me Macro) Print(p *Print) {
 	p.Atom("#(macro")
 	me.body.Print(p)
 	p.ListEnd()

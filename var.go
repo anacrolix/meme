@@ -25,6 +25,6 @@ func (me *Var) Set(val Node) {
 	me.val = val
 }
 
-func (me *Var) Print(p *Printer) {
+func (me *Var) Print(p *Print) {
 	p.Atom(me.name)
 }

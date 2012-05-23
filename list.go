@@ -14,10 +14,10 @@ func (me List) Rewrite(f RewriteFunc) Node {
 	return me.Map(MapFunc(f))
 }
 
-func (me List) Print(p *Printer) {
+func (me List) Print(p *Print) {
 	p.SyntaxToken(ListStart)
 	for _, a := range me {
-		a.Print(p)
+		a.(Printable).Print(p)
 	}
 	p.SyntaxToken(ListEnd)
 }
@@ -43,29 +43,24 @@ func (me List) Len() int {
 }
 
 func (me List) Map(f MapFunc) List {
-	ret := make(List, len(me))
-	for i, n := range me {
-		ret[i] = f(n)
+	ret := make(List, 0, len(me))
+	for _, n := range me {
+		ret = append(ret, f(n))
 	}
 	return ret
 }
 
 func (me List) Eval(env Env) Node {
 	proc := Eval(me[0].(Evalable), env).(Applicable)
-	args := make(List, len(me)-1)
-	for i, a := range me[1:] {
-		args[i] = Eval(a.(Evalable), env)
+	args := make(List, 0, len(me)-1)
+	for _, a := range me[1:] {
+		args = append(args, Eval(a.(Evalable), env))
 	}
 	return Apply(proc, args, env)
 }
 
 func Cons(a Node, b List) List {
-	ret := make(List, 1+len(b))
-	ret[0] = a
-	if len(b) != copy(ret[1:], b) {
-		panic(nil)
-	}
-	return ret
+	return append(List{a}, b...)
 }
 
 func (me List) Less(other Node) (less bool, err error) {
